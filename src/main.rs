@@ -1,5 +1,6 @@
 mod config;
 mod utils;
+mod writer;
 
 use clap::Parser;
 use dasp::signal::Signal;
@@ -7,13 +8,9 @@ use std::f32::consts::TAU;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::config::{Chunk, Config, Curve, Segment, ToneSpec};
-use crate::utils::{apply_global_fade, ease, lerp, ms_to_samples, secs_to_samples};
-
-/// Defaults
-const DEFAULT_SAMPLE_RATE: u32 = 48_000;
-const DEFAULT_GAIN: f32 = 0.9;
-const DEFAULT_FADE_MS: f32 = 50.0;
+use crate::config::{Chunk, Config};
+use crate::utils::{apply_global_fade, ease, lerp};
+use crate::writer::Writer;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -31,56 +28,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg_text = fs::read_to_string(&args.config)?;
     let cfg: Config = serde_yaml::from_str(&cfg_text)?;
 
-    let sample_rate = cfg.sample_rate.unwrap_or(DEFAULT_SAMPLE_RATE);
-    let gain = cfg.gain.unwrap_or(DEFAULT_GAIN).clamp(0.0, 1.0);
-    let fade_ms = cfg.fade_ms.unwrap_or(DEFAULT_FADE_MS).max(0.0);
-    let dt = 1.0_f32 / sample_rate as f32;
-
-    // Build a flat plan of samples to render by iterating segments
-    let mut chunks: Vec<Chunk> = Vec::new();
-    for seg in &cfg.segments {
-        match seg {
-            Segment::Tone { dur, carrier, hz } => {
-                let total = secs_to_samples(*dur, sample_rate);
-                chunks.push(Chunk::Tone {
-                    samples: total,
-                    spec: ToneSpec {
-                        carrier: *carrier,
-                        hz: *hz,
-                    },
-                });
-            }
-            Segment::Transition {
-                dur,
-                from,
-                to,
-                curve,
-            } => {
-                let total = secs_to_samples(*dur, sample_rate);
-                chunks.push(Chunk::Transition {
-                    samples: total,
-                    from: *from,
-                    to: *to,
-                    curve: curve.unwrap_or(Curve::Linear),
-                });
-            }
-        }
-    }
+    let gain = cfg.get_gain();
+    let fade_ms = cfg.get_fade_ms();
+    let dt = 1.0_f32 / cfg.get_sample_rate() as f32;
+    let chunks = cfg.create_chunks();
 
     // Total length for global fade in/out
     let total_samples: usize = chunks.iter().map(|c| c.samples()).sum();
-    let fade_len = ms_to_samples(fade_ms, sample_rate)
-        .min(total_samples / 2)
-        .max(1);
+    let fade_len = cfg.ms_to_samples(fade_ms).min(total_samples / 2).max(1);
 
-    // WAV writer: stereo, 16-bit
-    let spec = hound::WavSpec {
-        channels: 2,
-        sample_rate,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
-    };
-    let mut writer = hound::WavWriter::create(&cfg.out, spec)?;
+    let writer = &mut Writer::new(&cfg.out, cfg.get_sample_rate())?;
 
     // Phase accumulators
     let mut phase_l = 0.0_f32;

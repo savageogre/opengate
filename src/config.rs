@@ -1,5 +1,11 @@
+use crate::utils::{ms_to_samples, secs_to_samples};
 use serde::Deserialize;
 use std::path::PathBuf;
+
+/// Defaults
+const DEFAULT_SAMPLE_RATE: u32 = 48_000;
+const DEFAULT_GAIN: f32 = 0.9;
+const DEFAULT_FADE_MS: f32 = 50.0;
 
 #[derive(Debug, Deserialize, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
@@ -71,5 +77,57 @@ impl Chunk {
             Chunk::Tone { samples, .. } => *samples,
             Chunk::Transition { samples, .. } => *samples,
         }
+    }
+}
+
+impl Config {
+    pub fn ms_to_samples(&self, ms: f32) -> usize {
+        ms_to_samples(ms, self.get_sample_rate())
+    }
+    pub fn secs_to_samples(&self, secs: f32) -> usize {
+        secs_to_samples(secs, self.get_sample_rate())
+    }
+    pub fn get_sample_rate(&self) -> u32 {
+        self.sample_rate.unwrap_or(DEFAULT_SAMPLE_RATE)
+    }
+    pub fn get_gain(&self) -> f32 {
+        self.gain.unwrap_or(DEFAULT_GAIN).clamp(0.0, 1.0)
+    }
+    pub fn get_fade_ms(&self) -> f32 {
+        self.fade_ms.unwrap_or(DEFAULT_FADE_MS).max(0.0)
+    }
+
+    /// Build a flat plan of samples to render by iterating segments
+    pub fn create_chunks(&self) -> Vec<Chunk> {
+        let mut chunks: Vec<Chunk> = Vec::new();
+        for seg in &self.segments {
+            match seg {
+                Segment::Tone { dur, carrier, hz } => {
+                    let total = self.secs_to_samples(*dur);
+                    chunks.push(Chunk::Tone {
+                        samples: total,
+                        spec: ToneSpec {
+                            carrier: *carrier,
+                            hz: *hz,
+                        },
+                    });
+                }
+                Segment::Transition {
+                    dur,
+                    from,
+                    to,
+                    curve,
+                } => {
+                    let total = self.secs_to_samples(*dur);
+                    chunks.push(Chunk::Transition {
+                        samples: total,
+                        from: *from,
+                        to: *to,
+                        curve: curve.unwrap_or(Curve::Linear),
+                    });
+                }
+            }
+        }
+        chunks
     }
 }
