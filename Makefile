@@ -8,6 +8,9 @@ install-ubuntu-deps:
 build:
 	cargo build --release
 
+install: build
+	cargo install --path .
+
 lint:
 	cargo fmt
 	cargo clippy -- -D warnings

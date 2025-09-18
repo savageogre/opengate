@@ -1,0 +1,32 @@
+sample_rate: 48000
+gain: 0.9
+fade_ms: 50
+
+segments:
+  - type: tone
+    # 5 minutes (300s) in the theta range.
+    dur: 300.0
+    carrier: &start_car
+      200.0
+    # 7hz = theta
+    hz: &start_hz
+      7.0
+
+  - type: transition
+    # 10 minutes (600s) transitioning from theta (7.0 hz) to delta (3.875 hz)
+    dur: 600.0
+    from:
+      carrier: *start_car
+      hz: *start_hz
+    to:
+      carrier: &end_car
+        100.0
+      hz: &end_hz
+        3.875
+    curve: linear
+
+  - type: tone
+    # 15 minutes (900s) finishing up in the delta range.
+    dur: 900.0
+    carrier: *end_car
+    hz: *end_hz

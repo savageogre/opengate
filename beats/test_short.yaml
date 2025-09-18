@@ -1,25 +1,65 @@
+# Number of audio samples per second.
+# 48 kHz is standard for high-quality audio and works well with most players.
 sample_rate: 48000
+
+# Overall volume multiplier.
+# 0.0 = silent, 1.0 = full scale. 
+# 0.9 means "90% of max". This keeps the audio strong while leaving headroom to avoid clipping.
 gain: 0.9
+
+# Short fade-in/out in milliseconds, applied at tone starts/ends.
+# Prevents audible clicks when waveforms change abruptly.
 fade_ms: 50
 
+# This is a list of segments of the song.
 segments:
+  # A tone segment is a fixed-frequency carrier with binaural beat offset.
+  # It persists this binaural beat for a duration with no changes in phase.
   - type: tone
+    # Duration in seconds.
     dur: 3.0
+    # Base frequency sent to the left ear.
     carrier: 200.0
+    # Beat frequency (it's the difference between the left and right ears).
+    # Left ear = carrier frequency (200 Hz)
+    # Right ear = carrier + hz (207 Hz)
+    # This produces a 7 Hz binaural beat, which is in the theta range.
     hz: 7.0
 
+  # A gradual glide from one tone to another.
+  # This allows "entrainment", the process of nudging the brain’s rhythms to follow an external beat.
+  # A transition segment smoothly shifts from one beat frequency to another,
+  # helping the brain gradually follow along instead of being jolted to a new frequency.
+  # For example, moving from ~7 Hz (theta, relaxed focus) to 3.875 Hz (deep theta or delta) supports easing into a
+  # meditative or hypnagogic state.
   - type: transition
+
+    # Duration of the transition in seconds.
     dur: 1.0
+
     from:
+      # Starting carrier frequency
       carrier: 200.0
+      # Starting binaural beat frequency
       hz: 7.0
+
     to:
+      # Ending carrier frequency
       carrier: 100.0
+      # Ending binaural beat frequency
       hz: 3.875
-    # or "exp" 
+
+    # This chooses how the transition interpolates.
+    # You have two options:
+    #   - linear: straight slope
+    #   - exp: exponential curve
     curve: linear
 
+  # Another final fixed tone segment after the transition, keeping at 3.875.
   - type: tone
+    # Duration in seconds
     dur: 3.0
+    # Lower carrier frequency for a more relaxed tone
     carrier: 100.0
+    # Beat frequency in the delta range
     hz: 3.875
