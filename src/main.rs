@@ -1,14 +1,16 @@
 use clap::Parser;
-use dasp::signal::{self, Signal};
+use dasp::signal::Signal;
 use hound;
-/// OpenGate
-///
-/// This is free and open-source software to generate binaural beats for personal meditative
-/// purposes.
+use serde::Deserialize;
 use std::f32::consts::TAU;
+use std::fs;
 use std::path::PathBuf;
 
-const SAMPLE_RATE: u32 = 48_000;
+/// Defaults
+const DEFAULT_SAMPLE_RATE: u32 = 48_000;
+const DEFAULT_GAIN: f32 = 0.9;
+const DEFAULT_FADE_MS: f32 = 50.0;
+
 #[derive(Parser, Debug)]
 #[command(
     author = "Savage Ogre",
@@ -16,127 +18,261 @@ const SAMPLE_RATE: u32 = 48_000;
     about = "generate binaural beats for meditative purposes"
 )]
 struct Args {
-    #[arg(
-        short,
-        long = "out",
-        default_value = "opengate.wav",
-        help = "Output filename"
-    )]
+    /// YAML configuration file
+    config: PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+struct Config {
+    /// Output filename
     out: PathBuf,
 
-    // First beat
-    #[arg(long = "dur0", default_value_t = 10.0, help = "Duration of first beat")]
-    dur0: f32,
-    #[arg(
-        long = "car0",
-        default_value_t = 200.0,
-        help = "Carrier frequency of first beat"
-    )]
-    car0: f32,
-    #[arg(long = "hz0", default_value_t = 7.0, help = "Hertz of first beat")]
-    hz0: f32,
+    /// Optional overrides
+    #[serde(default)]
+    sample_rate: Option<u32>,
+    #[serde(default)]
+    gain: Option<f32>,
+    #[serde(default)]
+    fade_ms: Option<f32>,
 
-    // Between beats
-    #[arg(
-        long = "tdur0",
-        default_value_t = 10.0,
-        help = "Duration of the transition from first to second"
-    )]
-    tdur0: f32,
+    /// The sequence of audio segments
+    segments: Vec<Segment>,
+}
 
-    // Second beat
-    #[arg(
-        long = "dur1",
-        default_value_t = 10.0,
-        help = "Duration of second beat"
-    )]
-    dur1: f32,
-    #[arg(
-        long = "car1",
-        default_value_t = 100.0,
-        help = "Carrier frequency of second beat"
-    )]
-    car1: f32,
-    #[arg(long = "hz1", default_value_t = 3.875, help = "Hertz of second beat")]
-    hz1: f32,
+#[derive(Debug, Deserialize, Clone, Copy)]
+struct ToneSpec {
+    #[serde(default = "default_carrier")]
+    carrier: f32,
+    hz: f32,
+}
+
+/// Default carrier tone should be a reasonable 200.0 Hertz.
+fn default_carrier() -> f32 {
+    200.0
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+enum Segment {
+    /// Keep a steady tone for the duration `dur`.
+    Tone { dur: f32, carrier: f32, hz: f32 },
+    /// Transition from -> to across duration, with an optional curve.
+    Transition {
+        dur: f32,
+        from: ToneSpec,
+        to: ToneSpec,
+        #[serde(default)]
+        curve: Option<Curve>,
+    },
+}
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+enum Curve {
+    Linear,
+    Exp,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
+    let cfg_text = fs::read_to_string(&args.config)?;
+    let cfg: Config = serde_yaml::from_str(&cfg_text)?;
 
-    let total_duration: f32 = args.dur0 + args.tdur0 + args.dur1;
+    let sample_rate = cfg.sample_rate.unwrap_or(DEFAULT_SAMPLE_RATE);
+    let gain = cfg.gain.unwrap_or(DEFAULT_GAIN).clamp(0.0, 1.0);
+    let fade_ms = cfg.fade_ms.unwrap_or(DEFAULT_FADE_MS).max(0.0);
+    let dt = 1.0_f32 / sample_rate as f32;
 
-    let f_l0 = args.car0;
-    let f_r0 = args.car0 + args.hz0;
+    // Build a flat plan of samples to render by iterating segments
+    let mut chunks: Vec<Chunk> = Vec::new();
+    for seg in &cfg.segments {
+        match seg {
+            Segment::Tone { dur, carrier, hz } => {
+                let total = secs_to_samples(*dur, sample_rate);
+                chunks.push(Chunk::Tone {
+                    samples: total,
+                    spec: ToneSpec {
+                        carrier: *carrier,
+                        hz: *hz,
+                    },
+                });
+            }
+            Segment::Transition {
+                dur,
+                from,
+                to,
+                curve,
+            } => {
+                let total = secs_to_samples(*dur, sample_rate);
+                chunks.push(Chunk::Transition {
+                    samples: total,
+                    from: *from,
+                    to: *to,
+                    curve: curve.unwrap_or(Curve::Linear),
+                });
+            }
+        }
+    }
 
-    let f_l1 = args.car1;
-    let f_r1 = args.car1 + args.hz1;
+    // Total length for global fade in/out
+    let total_samples: usize = chunks.iter().map(|c| c.samples()).sum();
+    let fade_len = ms_to_samples(fade_ms, sample_rate)
+        .min(total_samples / 2)
+        .max(1);
 
-    let total_samples = (total_duration * SAMPLE_RATE as f32) as usize;
-
-    // TODO: this is just running for the whole thing, need to do entrainment stuff and use
-    // transition.
-    // Linear ramps for frequency over time using dasp_signal
-    let ramp = |start: f32, end: f32| {
-        signal::from_iter((0..total_samples).map(move |n| {
-            let t = n as f32 / (total_samples.saturating_sub(1).max(1) as f32);
-            start + (end - start) * t
-        }))
+    // WAV writer: stereo, 16-bit
+    let spec = hound::WavSpec {
+        channels: 2,
+        sample_rate,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
     };
-
-    let mut freq_l = ramp(f_l0, f_l1);
-    let mut freq_r = ramp(f_r0, f_r1);
+    let mut writer = hound::WavWriter::create(&cfg.out, spec)?;
 
     // Phase accumulators
     let mut phase_l = 0.0_f32;
     let mut phase_r = 0.0_f32;
-    let dt = 1.0_f32 / SAMPLE_RATE as f32;
 
-    // WAV writer using 16-bit stereo (it MUST be stereo to be binaural beats).
-    let spec = hound::WavSpec {
-        channels: 2,
-        sample_rate: SAMPLE_RATE,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
-    };
-    let mut writer = hound::WavWriter::create(args.out.clone(), spec)?;
+    // Render
+    let mut n_global = 0usize;
+    for chunk in chunks {
+        match chunk {
+            Chunk::Tone { samples, spec } => {
+                for _ in 0..samples {
+                    // fixed frequencies per sample
+                    let f_l = spec.carrier;
+                    let f_r = spec.carrier + spec.hz;
 
-    // A simple fade in/out to avoid clicks - 0.05 being 50 ms.
-    let fade_len = (0.05 * SAMPLE_RATE as f32) as usize;
+                    // integrate phase
+                    phase_l = (phase_l + f_l * dt) % 1.0;
+                    phase_r = (phase_r + f_r * dt) % 1.0;
 
-    for n in 0..total_samples {
-        let f_l = freq_l.next();
-        let f_r = freq_r.next();
+                    // sample
+                    let (mut left, mut right) = ((TAU * phase_l).sin(), (TAU * phase_r).sin());
 
-        phase_l = (phase_l + f_l * dt) % 1.0;
-        phase_r = (phase_r + f_r * dt) % 1.0;
+                    // global fade in/out to avoid clicks at file edges
+                    apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
 
-        let mut left = (TAU * phase_l).sin();
-        let mut right = (TAU * phase_r).sin();
+                    // headroom
+                    let li = (left * gain * i16::MAX as f32) as i16;
+                    let ri = (right * gain * i16::MAX as f32) as i16;
 
-        // Apply quick fade at start and end.
-        if n < fade_len {
-            let g = n as f32 / fade_len as f32;
-            left *= g;
-            right *= g;
-        } else if n > total_samples - fade_len {
-            let g = (total_samples - n) as f32 / fade_len as f32;
-            left *= g;
-            right *= g;
+                    writer.write_sample(li)?;
+                    writer.write_sample(ri)?;
+                    n_global += 1;
+                }
+            }
+            Chunk::Transition {
+                samples,
+                from,
+                to,
+                curve,
+            } => {
+                // build simple ramp Signal for convenience (dasp)
+                let ramp = dasp::signal::from_iter((0..samples).map(move |n| {
+                    // normalized time in [0,1]
+                    let t = if samples <= 1 {
+                        1.0
+                    } else {
+                        n as f32 / (samples - 1) as f32
+                    };
+                    ease(t, curve)
+                }));
+
+                let mut ramp_iter = ramp;
+                for _ in 0..samples {
+                    let t = ramp_iter.next();
+
+                    let f_car = lerp(from.carrier, to.carrier, t);
+                    let f_hz = lerp(from.hz, to.hz, t);
+
+                    let f_l = f_car;
+                    let f_r = f_car + f_hz;
+
+                    phase_l = (phase_l + f_l * dt) % 1.0;
+                    phase_r = (phase_r + f_r * dt) % 1.0;
+
+                    let (mut left, mut right) = ((TAU * phase_l).sin(), (TAU * phase_r).sin());
+
+                    apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
+
+                    let li = (left * gain * i16::MAX as f32) as i16;
+                    let ri = (right * gain * i16::MAX as f32) as i16;
+
+                    writer.write_sample(li)?;
+                    writer.write_sample(ri)?;
+                    n_global += 1;
+                }
+            }
         }
-
-        // Reduce amplitude to avoid clipping for layering noise down the road.
-        let amp = 0.9_f32;
-
-        // Converting it to i16 with headroom.
-        let li = (left * amp * i16::MAX as f32) as i16;
-        let ri = (right * amp * i16::MAX as f32) as i16;
-
-        writer.write_sample(li)?;
-        writer.write_sample(ri)?;
     }
 
     writer.finalize()?;
-    println!("Wrote beats to: {:?}", args.out);
+    println!("Wrote beats to: {:?}", &cfg.out);
     Ok(())
+}
+
+enum Chunk {
+    Tone {
+        samples: usize,
+        spec: ToneSpec,
+    },
+    Transition {
+        samples: usize,
+        from: ToneSpec,
+        to: ToneSpec,
+        curve: Curve,
+    },
+}
+
+impl Chunk {
+    fn samples(&self) -> usize {
+        match self {
+            Chunk::Tone { samples, .. } => *samples,
+            Chunk::Transition { samples, .. } => *samples,
+        }
+    }
+}
+
+#[inline]
+fn secs_to_samples(secs: f32, sr: u32) -> usize {
+    ((secs.max(0.0)) * sr as f32).round() as usize
+}
+
+#[inline]
+fn ms_to_samples(ms: f32, sr: u32) -> usize {
+    secs_to_samples(ms / 1000.0, sr)
+}
+
+#[inline]
+fn lerp(a: f32, b: f32, t: f32) -> f32 {
+    a + (b - a) * t
+}
+
+#[inline]
+fn ease(t: f32, curve: Curve) -> f32 {
+    let x = t.clamp(0.0, 1.0);
+    match curve {
+        Curve::Linear => x,
+        // Exponential-ish ease (smooth start/end): y = (e^(k x) - 1) / (e^k - 1)
+        // with k ~ 4.0 for a noticeable curve.
+        Curve::Exp => {
+            let k = 4.0_f32;
+            ((k * x).exp() - 1.0) / (k.exp() - 1.0)
+        }
+    }
+}
+
+// Apply a quick global fade in/out to avoid clicks at file boundaries.
+fn apply_global_fade(n: usize, total: usize, fade_len: usize, left: &mut f32, right: &mut f32) {
+    if n < fade_len {
+        let g = n as f32 / fade_len as f32;
+        *left *= g;
+        *right *= g;
+    } else if n + fade_len >= total {
+        let remain = total - n;
+        let g = (remain as f32 / fade_len as f32).clamp(0.0, 1.0);
+        *left *= g;
+        *right *= g;
+    }
 }

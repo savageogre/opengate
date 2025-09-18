@@ -1,0 +1,26 @@
+out: "opengate_example.wav"
+sample_rate: 48000
+gain: 0.9
+fade_ms: 50
+
+segments:
+  - type: tone
+    dur: 10.0
+    carrier: 200.0
+    hz: 7.0
+
+  - type: transition
+    dur: 10.0
+    from:
+      carrier: 200.0
+      hz: 7.0
+    to:
+      carrier: 100.0
+      hz: 3.875
+    # or "exp" 
+    curve: linear
+
+  - type: tone
+    dur: 10.0
+    carrier: 100.0
+    hz: 3.875
