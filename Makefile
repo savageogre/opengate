@@ -13,6 +13,6 @@ test:
 	cargo test --verbose
 
 play-short: build
-	rm ./test_short.wav
+	test -f "./test_short.wav" && rm ./test_short.wav || true
 	$(OPENGATE) ./beats/test_short.yaml
 	aplay ./test_short.wav
