@@ -1,15 +1,21 @@
-use clap::Parser;
+mod config;
+mod utils;
+
 use dasp::signal::Signal;
 use hound;
-use serde::Deserialize;
 use std::f32::consts::TAU;
 use std::fs;
 use std::path::PathBuf;
+use clap::Parser;
+
+use crate::config::{Chunk, Config, Curve, Segment, ToneSpec};
+use crate::utils::{apply_global_fade, ease, secs_to_samples, ms_to_samples, lerp};
 
 /// Defaults
 const DEFAULT_SAMPLE_RATE: u32 = 48_000;
 const DEFAULT_GAIN: f32 = 0.9;
 const DEFAULT_FADE_MS: f32 = 50.0;
+
 
 #[derive(Parser, Debug)]
 #[command(
@@ -20,57 +26,6 @@ const DEFAULT_FADE_MS: f32 = 50.0;
 struct Args {
     /// YAML configuration file
     config: PathBuf,
-}
-
-#[derive(Debug, Deserialize)]
-struct Config {
-    /// Output filename
-    out: PathBuf,
-
-    /// Optional overrides
-    #[serde(default)]
-    sample_rate: Option<u32>,
-    #[serde(default)]
-    gain: Option<f32>,
-    #[serde(default)]
-    fade_ms: Option<f32>,
-
-    /// The sequence of audio segments
-    segments: Vec<Segment>,
-}
-
-#[derive(Debug, Deserialize, Clone, Copy)]
-struct ToneSpec {
-    #[serde(default = "default_carrier")]
-    carrier: f32,
-    hz: f32,
-}
-
-/// Default carrier tone should be a reasonable 200.0 Hertz.
-fn default_carrier() -> f32 {
-    200.0
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-enum Segment {
-    /// Keep a steady tone for the duration `dur`.
-    Tone { dur: f32, carrier: f32, hz: f32 },
-    /// Transition from -> to across duration, with an optional curve.
-    Transition {
-        dur: f32,
-        from: ToneSpec,
-        to: ToneSpec,
-        #[serde(default)]
-        curve: Option<Curve>,
-    },
-}
-
-#[derive(Debug, Deserialize, Clone, Copy)]
-#[serde(rename_all = "lowercase")]
-enum Curve {
-    Linear,
-    Exp,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -210,69 +165,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     writer.finalize()?;
     println!("Wrote beats to: {:?}", &cfg.out);
     Ok(())
-}
-
-enum Chunk {
-    Tone {
-        samples: usize,
-        spec: ToneSpec,
-    },
-    Transition {
-        samples: usize,
-        from: ToneSpec,
-        to: ToneSpec,
-        curve: Curve,
-    },
-}
-
-impl Chunk {
-    fn samples(&self) -> usize {
-        match self {
-            Chunk::Tone { samples, .. } => *samples,
-            Chunk::Transition { samples, .. } => *samples,
-        }
-    }
-}
-
-#[inline]
-fn secs_to_samples(secs: f32, sr: u32) -> usize {
-    ((secs.max(0.0)) * sr as f32).round() as usize
-}
-
-#[inline]
-fn ms_to_samples(ms: f32, sr: u32) -> usize {
-    secs_to_samples(ms / 1000.0, sr)
-}
-
-#[inline]
-fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    a + (b - a) * t
-}
-
-#[inline]
-fn ease(t: f32, curve: Curve) -> f32 {
-    let x = t.clamp(0.0, 1.0);
-    match curve {
-        Curve::Linear => x,
-        // Exponential-ish ease (smooth start/end): y = (e^(k x) - 1) / (e^k - 1)
-        // with k ~ 4.0 for a noticeable curve.
-        Curve::Exp => {
-            let k = 4.0_f32;
-            ((k * x).exp() - 1.0) / (k.exp() - 1.0)
-        }
-    }
-}
-
-// Apply a quick global fade in/out to avoid clicks at file boundaries.
-fn apply_global_fade(n: usize, total: usize, fade_len: usize, left: &mut f32, right: &mut f32) {
-    if n < fade_len {
-        let g = n as f32 / fade_len as f32;
-        *left *= g;
-        *right *= g;
-    } else if n + fade_len >= total {
-        let remain = total - n;
-        let g = (remain as f32 / fade_len as f32).clamp(0.0, 1.0);
-        *left *= g;
-        *right *= g;
-    }
 }
