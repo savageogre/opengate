@@ -9,6 +9,8 @@ on:
       - '**/Cargo.lock'
       - '**/build.rs'
       - '.cargo/**'
+      - '**/*.yaml'
+      - '**/*.yml'
   pull_request:
     branches: [main, dev]
     paths:
@@ -17,6 +19,8 @@ on:
       - '**/Cargo.lock'
       - '**/build.rs'
       - '.cargo/**'
+      - '**/*.yaml'
+      - '**/*.yml'
   # optional manual trigger
   workflow_dispatch:
 
