@@ -1,6 +1,5 @@
 use crate::utils::{ms_to_samples, secs_to_samples};
 use serde::Deserialize;
-use std::path::PathBuf;
 
 /// Defaults
 const DEFAULT_SAMPLE_RATE: u32 = 48_000;
@@ -16,9 +15,6 @@ pub enum Curve {
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    /// Output filename
-    pub out: PathBuf,
-
     /// Optional overrides
     #[serde(default)]
     pub sample_rate: Option<u32>,

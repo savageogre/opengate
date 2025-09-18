@@ -2,6 +2,9 @@ SOURCE = opengate
 RDIR = target/release/
 OPENGATE = $(RDIR)opengate
 
+install-ubuntu-deps:
+	sudo apt install libflac-dev
+
 build:
 	cargo build --release
 
@@ -12,7 +15,15 @@ lint:
 test:
 	cargo test --verbose
 
+clean:
+	cargo clean
+
 play-short: build
 	test -f "./test_short.wav" && rm ./test_short.wav || true
-	$(OPENGATE) ./beats/test_short.yaml
+	$(OPENGATE) ./beats/test_short.yaml --out ./test_short.wav
 	aplay ./test_short.wav
+
+play-short-flac: build
+	test -f "./test_short.flac" && rm ./test_short.flac || true
+	$(OPENGATE) ./beats/test_short.yaml --out ./test_short.flac
+	aplay ./test_short.flac

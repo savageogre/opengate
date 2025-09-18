@@ -1,19 +1,21 @@
+use crate::config::{Chunk, Config};
+use crate::sink::new_sink;
+use crate::utils::{apply_global_fade, ease, lerp};
 /// Does the actual audio rendering magic.
 use dasp::signal::Signal;
 use std::f32::consts::TAU;
 
-use crate::config::{Chunk, Config};
-use crate::utils::{apply_global_fade, ease, lerp};
-use crate::writer::Writer;
-
-pub fn render(cfg: &Config) -> Result<(), Box<dyn std::error::Error>> {
-    let writer = &mut Writer::new(&cfg.out, cfg.get_sample_rate())?;
+/// Given a beat config and output path, write the file dynamically based on extension (WAV or
+/// FLAC).
+pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let sample_rate = cfg.get_sample_rate();
     let gain = cfg.get_gain();
     let fade_ms = cfg.get_fade_ms();
-    let dt = 1.0_f32 / cfg.get_sample_rate() as f32;
+    let dt = 1.0_f32 / sample_rate as f32;
     let chunks = cfg.create_chunks();
 
-    // Total length for global fade in/out
+    let mut sink = new_sink(out, sample_rate)?;
+
     let total_samples: usize = chunks.iter().map(|c| c.samples()).sum();
     let fade_len = cfg.ms_to_samples(fade_ms).min(total_samples / 2).max(1);
 
@@ -21,32 +23,23 @@ pub fn render(cfg: &Config) -> Result<(), Box<dyn std::error::Error>> {
     let mut phase_l = 0.0_f32;
     let mut phase_r = 0.0_f32;
 
-    // Render
     let mut n_global = 0usize;
     for chunk in chunks {
         match chunk {
             Chunk::Tone { samples, spec } => {
                 for _ in 0..samples {
-                    // fixed frequencies per sample
                     let f_l = spec.carrier;
                     let f_r = spec.carrier + spec.hz;
 
-                    // integrate phase
                     phase_l = (phase_l + f_l * dt) % 1.0;
                     phase_r = (phase_r + f_r * dt) % 1.0;
 
-                    // sample
                     let (mut left, mut right) = ((TAU * phase_l).sin(), (TAU * phase_r).sin());
-
-                    // global fade in/out to avoid clicks at file edges
                     apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
 
-                    // headroom
-                    let li = (left * gain * i16::MAX as f32) as i16;
-                    let ri = (right * gain * i16::MAX as f32) as i16;
-
-                    writer.write_sample(li)?;
-                    writer.write_sample(ri)?;
+                    // We write this out as f32 [-1.0, 1.0] because the sinks handle quantization/encoding, depending
+                    // on the file type.
+                    sink.write_frame(left * gain, right * gain)?;
                     n_global += 1;
                 }
             }
@@ -56,9 +49,7 @@ pub fn render(cfg: &Config) -> Result<(), Box<dyn std::error::Error>> {
                 to,
                 curve,
             } => {
-                // build simple ramp Signal for convenience (dasp)
                 let ramp = dasp::signal::from_iter((0..samples).map(move |n| {
-                    // normalized time in [0,1]
                     let t = if samples <= 1 {
                         1.0
                     } else {
@@ -81,19 +72,14 @@ pub fn render(cfg: &Config) -> Result<(), Box<dyn std::error::Error>> {
                     phase_r = (phase_r + f_r * dt) % 1.0;
 
                     let (mut left, mut right) = ((TAU * phase_l).sin(), (TAU * phase_r).sin());
-
                     apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
 
-                    let li = (left * gain * i16::MAX as f32) as i16;
-                    let ri = (right * gain * i16::MAX as f32) as i16;
-
-                    writer.write_sample(li)?;
-                    writer.write_sample(ri)?;
+                    sink.write_frame(left * gain, right * gain)?;
                     n_global += 1;
                 }
             }
         }
     }
-    writer.finalize()?;
+    sink.finalize()?;
     Ok(())
 }
