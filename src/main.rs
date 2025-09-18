@@ -3,7 +3,6 @@ mod utils;
 
 use clap::Parser;
 use dasp::signal::Signal;
-use hound;
 use std::f32::consts::TAU;
 use std::fs;
 use std::path::PathBuf;
