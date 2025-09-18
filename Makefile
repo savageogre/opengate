@@ -26,4 +26,5 @@ play-short: build
 play-short-flac: build
 	test -f "./test_short.flac" && rm ./test_short.flac || true
 	$(OPENGATE) ./beats/test_short.yaml --out ./test_short.flac
+	# Need sudo apt install ffmpeg for ffplay
 	ffplay -autoexit -nodisp ./test_short.flac
