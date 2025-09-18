@@ -1,6 +1,6 @@
 mod config;
-mod utils;
 mod render;
+mod utils;
 mod writer;
 
 use clap::Parser;
@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(()) => {
             println!("Wrote beats to: {:?}", &cfg.out);
             Ok(())
-        },
+        }
         Err(err) => Err(err),
     }
 }

@@ -14,7 +14,7 @@ impl Writer {
             bits_per_sample: 16,
             sample_format: hound::SampleFormat::Int,
         };
-        let writer = hound::WavWriter::create(&out, spec)?;
+        let writer = hound::WavWriter::create(out, spec)?;
         Ok(Self { writer })
     }
 
@@ -24,6 +24,6 @@ impl Writer {
 
     /// Finalize writing and close the file
     pub fn finalize(&mut self) -> hound::Result<()> {
-        Ok(self.writer.flush()?)
+        self.writer.flush()
     }
 }
