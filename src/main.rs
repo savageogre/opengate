@@ -1,21 +1,20 @@
 mod config;
 mod utils;
 
+use clap::Parser;
 use dasp::signal::Signal;
 use hound;
 use std::f32::consts::TAU;
 use std::fs;
 use std::path::PathBuf;
-use clap::Parser;
 
 use crate::config::{Chunk, Config, Curve, Segment, ToneSpec};
-use crate::utils::{apply_global_fade, ease, secs_to_samples, ms_to_samples, lerp};
+use crate::utils::{apply_global_fade, ease, lerp, ms_to_samples, secs_to_samples};
 
 /// Defaults
 const DEFAULT_SAMPLE_RATE: u32 = 48_000;
 const DEFAULT_GAIN: f32 = 0.9;
 const DEFAULT_FADE_MS: f32 = 50.0;
-
 
 #[derive(Parser, Debug)]
 #[command(
