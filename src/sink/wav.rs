@@ -1,3 +1,4 @@
+/// Default audio file writer.
 use super::{AudioSink, f32_to_i16};
 use hound::{SampleFormat, WavSpec, WavWriter};
 use std::{error::Error, fs::File, io::BufWriter, path::Path};
