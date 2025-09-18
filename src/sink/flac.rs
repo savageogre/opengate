@@ -2,6 +2,8 @@
 ///   Ubuntu/Debian: sudo apt install libflac-dev
 ///   Fedora/RHEL: sudo dnf install flac-devel
 ///   Arch: sudo pacman -S flac
+///
+/// This code is a bit messy with an unsafe block, but it works.
 use super::{AudioSink, f32_to_i16};
 use flac_bound::{FlacEncoder, WriteWrapper};
 use std::{error::Error, fs::File, path::Path, ptr::NonNull};
@@ -16,17 +18,15 @@ pub struct FlacSink {
 
 impl FlacSink {
     pub fn create(out: &str, sample_rate: u32) -> Result<Box<dyn AudioSink>, Box<dyn Error>> {
-        // Leak File to get &'static mut File
         let file_box = Box::new(File::create(Path::new(out))?);
         let file_ptr = Box::into_raw(file_box);
         let file_static: &'static mut File = unsafe { &mut *file_ptr };
 
-        // Leak WriteWrapper to get &'static mut WriteWrapper
         let wrapper_box = Box::new(WriteWrapper(file_static));
         let wrapper_ptr = Box::into_raw(wrapper_box);
         let wrapper_static: &'static mut WriteWrapper<'static> = unsafe { &mut *wrapper_ptr };
 
-        // Build encoder that borrows the leaked wrapper
+        // Build encoder will borrow the static lifetime here:
         let enc = FlacEncoder::new()
             .unwrap()
             .channels(2)
@@ -45,12 +45,11 @@ impl FlacSink {
         }))
     }
 
+    // SAFETY: We only call this after the encoder has been finished and won't touch the writer anymore.
     fn reclaim_leaks(&mut self) {
         if self.reclaimed {
             return;
         }
-        // SAFETY: We only call this after the encoder has been finished (and won't
-        // touch the writer anymore), or in Drop after a best-effort finish.
         unsafe {
             let _wrapper: Box<WriteWrapper<'static>> = Box::from_raw(self.wrapper_ptr.as_ptr());
             let _file: Box<File> = Box::from_raw(self.file_ptr.as_ptr());
@@ -75,17 +74,15 @@ impl AudioSink for FlacSink {
     }
 
     fn finalize(mut self: Box<Self>) -> Result<(), Box<dyn Error>> {
-        // Take ownership of the encoder so we can call finish(self)
         if let Some(enc) = self.enc.take() {
             let res = match enc.finish() {
                 Ok(_) => Ok(()),
                 Err(enc) => Err(format!("FLAC finalize failed: {:?}", enc.state()).into()),
             };
-            // Safe to reclaim now that the encoder is finished.
             self.reclaim_leaks();
             res
         } else {
-            // Already finished or not initialized
+            // Already finished or not initialized?
             self.reclaim_leaks();
             Ok(())
         }
@@ -94,7 +91,7 @@ impl AudioSink for FlacSink {
 
 impl Drop for FlacSink {
     fn drop(&mut self) {
-        // Best-effort cleanup if user forgot to call finalize:
+        // ...if the user forgot to call finalize:
         if let Some(enc) = self.enc.take() {
             let _ = enc.finish();
         }
