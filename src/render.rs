@@ -39,6 +39,8 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
                     phase_r = (phase_r + f_r * dt) % 1.0;
 
                     let (mut left, mut right) = ((TAU * phase_l).sin(), (TAU * phase_r).sin());
+                    left *= spec.gain;
+                    right *= spec.gain;
                     apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
 
                     // We write this out as f32 [-1.0, 1.0] because the sinks handle quantization/encoding, depending
@@ -69,6 +71,7 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
 
                     let f_car = lerp(from.carrier, to.carrier, t);
                     let f_hz = lerp(from.hz, to.hz, t);
+                    let f_gain = lerp(from.gain, to.gain, t);
 
                     let f_l = f_car;
                     let f_r = f_car + f_hz;
@@ -77,6 +80,8 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
                     phase_r = (phase_r + f_r * dt) % 1.0;
 
                     let (mut left, mut right) = ((TAU * phase_l).sin(), (TAU * phase_r).sin());
+                    left *= f_gain;
+                    right *= f_gain;
                     apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
 
                     sink.write_frame(left * gain, right * gain)?;
