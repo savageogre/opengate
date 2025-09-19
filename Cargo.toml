@@ -3,6 +3,10 @@ name = "opengate"
 version = "0.2.0"
 edition = "2024"
 
+[features]
+default = []
+flac = ["flac-bound"]
+
 [dependencies]
 clap = { version = "4.5.47", features = ["derive"] }
 dasp = { version = "0.11.0", features = ["signal"] }
@@ -10,5 +14,5 @@ hound = "3.5.1"
 num-traits = "0.2.19"
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
-flac-bound = { version = "0.5", default-features = false, features = ["libflac-nobuild"] }
+flac-bound = { version = "0.5", default-features = false, features = ["libflac-nobuild"], optional = true }
 rand = "0.9.2"

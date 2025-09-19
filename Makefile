@@ -4,11 +4,17 @@ OPENGATE = $(RDIR)opengate
 
 all: lint opengate
 
-install-ubuntu-deps:
+install-ubuntu-flac-deps:
 	sudo apt install libflac-dev
+
+opengate-flac:
+	cargo build --release --features flac
 
 opengate:
 	cargo build --release
+
+install-flac: opengate-flac
+	cargo install --path . --force
 
 install: opengate
 	cargo install --path . --force
