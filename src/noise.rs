@@ -36,7 +36,7 @@ impl NoiseGenerator {
                 let white: f32 = rng.random_range(-1.0..=1.0);
                 self.pink_state[0] = 0.99886 * self.pink_state[0] + white * 0.0555179;
                 self.pink_state[1] = 0.99332 * self.pink_state[1] + white * 0.0750759;
-                self.pink_state[2] = 0.96900 * self.pink_state[2] + white * 0.1538520;
+                self.pink_state[2] = 0.96900 * self.pink_state[2] + white * 0.153_852;
                 self.pink_state[3] = 0.86650 * self.pink_state[3] + white * 0.3104856;
                 self.pink_state[4] = 0.55000 * self.pink_state[4] + white * 0.5329522;
                 self.pink_state[5] = -0.7616 * self.pink_state[5] - white * 0.0168980;

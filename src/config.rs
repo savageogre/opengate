@@ -163,7 +163,7 @@ impl Config {
             }
         }
         for (i, chunk) in chunks.iter().enumerate() {
-            println!("Chunk {}: {:?}", i, chunk);
+            eprintln!("Chunk {}: {:?}", i, chunk);
         }
         chunks
     }

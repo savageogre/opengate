@@ -70,68 +70,109 @@ Beat YAML Schema
 ----------------
 
 Most of the magic is in the YAML config you use.
-Let's look at beats/test_short.yaml as an example:
 
-    sample_rate: 48000
+The general idea is that you enumerate a list of "segments", each is either of type "tone" or "transition".
 
-    # Overall volume multiplier.
-    # 0.0 = silent, 1.0 = full scale. 
-    # 0.9 means "90% of max". This keeps the audio strong while leaving headroom to avoid clipping.
-    gain: 0.9
+A "tone" plays a specific carrier frequency in the left ear, and carrier frequency + desired hertz in the right ear.
+Your brain will perceive the difference so that if the left ear hears 200 Hz, and the right ear 207 Hz, you will
+perceive the 7 Hz "wobble" even if your headphones can't play 7 Hz at all.
 
-    # Short fade-in/out in milliseconds, applied at tone starts/ends.
-    # Prevents audible clicks when waveforms change abruptly.
-    fade_ms: 50
+We also play optional "noise", which can be of different colors: pink, white, brown.
+Generally, most prefer pink or brown for meditation as they sound more calming, though you can experiment with any.
 
-    # This is a list of segments of the song.
-    segments:
-      # A tone segment is a fixed-frequency carrier with binaural beat offset.
-      # It persists this binaural beat for a duration with no changes in phase.
-      - type: tone
-        # Duration in seconds.
-        dur: 3.0
-        # Base frequency sent to the left ear.
+You will want to pick a "gain" for the tone, and a gain for the noise if you add it. Let's see an example segment:
+
+    - type: tone
+      dur: 60
+      gain: 0.25
+      carrier: 200.0
+      hz: 7.0
+      noise:
+        color: pink
+        gain: 0.75
+
+This Tone specification above will play 200 Hz in the left ear, 207 Hz in the right ear (entraining your brain to
+7 hertz), and play pink noise 3 times louder than the tone. This will happen over 60 seconds (60 "dur" for duration).
+
+*Gain Note*: You could technically put gain of each at 1.0, but it will normalize so that `gain_i = gain_i / total`,
+so a `gain: 1.0` for the binaural tone and `gain: 1.0` for the noise` would be equivalent to 0.5 and 0.5 respectively.
+Just as you see above the 0.25 and 0.75, that is equivalent to their ratio.
+
+The other type of segment is a "transition".
+
+This is very common for meditation purposes. Let's say you want to entrain your brain to 7 Hz theta and relax there
+for 5 minutes, then gradually go down to 3.875 Hz delta over a period of 5 minutes, then meditate at a constant delta
+for 20 minutes.
+
+You will have to specify an initial "tone" segment at 7 Hz, and a final "tone" segment at 3.875 Hz, but the middle
+segment should gradually curve from 7 Hz to 3.875 Hz. You might also want to control the gain and transition it as
+well, make the noise sound louder, or even change from pink to brown noise (which will sound a bit abrupt, but that
+should be fine).
+
+This would be a potential transition:
+
+    - type: transition
+      dur: 300.0
+      curve: linear
+      from:
         carrier: 200.0
-        # Beat frequency (it's the difference between the left and right ears).
-        # Left ear = carrier frequency (200 Hz)
-        # Right ear = carrier + hz (207 Hz)
-        # This produces a 7 Hz binaural beat, which is in the theta range.
         hz: 7.0
-
-      # A gradual glide from one tone to another.
-      # This allows "entrainment", the process of nudging the brain’s rhythms to follow an external beat.
-      # A transition segment smoothly shifts from one beat frequency to another,
-      # helping the brain gradually follow along instead of being jolted to a new frequency.
-      # For example, moving from ~7 Hz (theta, relaxed focus) to 3.875 Hz (deep theta or delta) supports easing into a
-      # meditative or hypnagogic state.
-      - type: transition
-
-        # Duration of the transition in seconds.
-        dur: 1.0
-
-        from:
-          # Starting carrier frequency
-          carrier: 200.0
-          # Starting binaural beat frequency
-          hz: 7.0
-
-        to:
-          # Ending carrier frequency
-          carrier: 100.0
-          # Ending binaural beat frequency
-          hz: 3.875
-
-        # This chooses how the transition interpolates.
-        # You have two options:
-        #   - linear: straight slope
-        #   - exp: exponential curve
-        curve: linear
-
-      # Another final fixed tone segment after the transition, keeping at 3.875.
-      - type: tone
-        # Duration in seconds
-        dur: 3.0
-        # Lower carrier frequency for a more relaxed tone
+        gain: 0.25
+        noise:
+          color: pink
+          gain: 0.75
+      to:
+        gain: 0.25
         carrier: 100.0
-        # Beat frequency in the delta range
         hz: 3.875
+        noise:
+          color: pink
+          gain: 0.75
+
+You can see here we define a duration similarly (300 for 300 seconds or 5 minutes), and a curve (linear or exp),
+then a `from` and `to` section which are very similar to what you'd specify for a tone, only they attribute to where
+this segment starts and ends at.
+
+Thus, our full meditation beat would be thus (also in beats/example.yaml):
+
+    segments:
+      - type: tone
+        gain: 0.25
+        dur: 300.0
+        carrier: 200.0
+        hz: 7.0
+        noise:
+          color: pink
+          gain: 0.75
+
+      - type: transition
+        dur: 300.0
+        curve: linear
+        from:
+          carrier: 200.0
+          hz: 7.0
+          gain: 0.25
+          noise:
+            color: pink
+            gain: 0.75
+        to:
+          carrier: 100.0
+          hz: 3.875
+          gain: 0.25
+          noise:
+            color: pink
+            gain: 0.75
+
+      - type: tone
+        dur: 1200.0
+        carrier: 100.0
+        hz: 3.875
+        gain: 0.25
+        noise:
+          color: pink
+          gain: 0.75
+
+It's also possible to use [YAML anchors](https://medium.com/@kinghuang/docker-compose-anchors-aliases-extensions-a1e4105d70bd), which you can see in ./beats/entrain_theta_to_delta.yaml , which should
+produce similar audio to above.
+
+See ./beats/test_short.yaml as a full documented example with all options specified.

@@ -14,7 +14,7 @@ use crate::render::render;
 #[derive(Parser, Debug)]
 #[command(
     author = "Savage Ogre",
-    version = "0.1.0",
+    version,
     about = "generate binaural beats for meditative purposes"
 )]
 struct Args {

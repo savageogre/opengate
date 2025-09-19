@@ -11,7 +11,7 @@ opengate:
 	cargo build --release
 
 install: opengate
-	cargo install --path .
+	cargo install --path . --force
 
 fmt:
 	cargo fmt

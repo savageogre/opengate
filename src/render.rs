@@ -10,23 +10,32 @@ fn gain_or_zero(noise: &Option<NoiseSpec>) -> f32 {
     noise.as_ref().map(|ns| ns.gain).unwrap_or(0.0)
 }
 
-fn from_to_or_fallback<T: Clone>(from: &Option<T>, to: &Option<T>, t: f32) -> Option<T> {
-    match (from, to) {
+fn from_to_or_fallback<'a, T>(
+    from: &'a mut Option<T>,
+    to: &'a mut Option<T>,
+    t: f32,
+) -> Option<&'a mut T> {
+    match (from.as_mut(), to.as_mut()) {
         (Some(left), Some(right)) => {
             if t < 0.5 {
-                Some(left.clone())
+                Some(left)
             } else {
-                Some(right.clone())
+                Some(right)
             }
         }
-        (Some(left), _) => Some(left.clone()),
-        (_, Some(right)) => Some(right.clone()),
+        (Some(left), _) => Some(left),
+        (_, Some(right)) => Some(right),
         _ => None,
     }
 }
 
 /// There's some complexity here, where we normalize tone and noise gain if they're both provided.
-fn add_noise_and_fix_gain(left: &mut f32, right: &mut f32, spec: &ToneSpec, opt_ngen: &mut Option<NoiseGenerator>) {
+fn add_noise_and_fix_gain(
+    left: &mut f32,
+    right: &mut f32,
+    spec: &ToneSpec,
+    opt_ngen: &mut Option<NoiseGenerator>,
+) {
     // If this is something, we have a noise generator and noise spec.
     if let Some(ngen) = opt_ngen.as_mut() {
         // Normalize gain.
@@ -46,7 +55,14 @@ fn add_noise_and_fix_gain(left: &mut f32, right: &mut f32, spec: &ToneSpec, opt_
     }
 }
 
-fn add_noise_and_fix_gain_in_transition(left: &mut f32, right: &mut f32, from: &ToneSpec, to: &ToneSpec, opt_ngen: &mut Option<NoiseGenerator>, t: f32) {
+fn add_noise_and_fix_gain_in_transition(
+    left: &mut f32,
+    right: &mut f32,
+    from: &ToneSpec,
+    to: &ToneSpec,
+    opt_ngen: &mut Option<&mut NoiseGenerator>,
+    t: f32,
+) {
     let mut t_gain = lerp(from.gain, to.gain, t).clamp(0.0, 1.0);
     if let Some(ngen) = opt_ngen.as_mut() {
         let mut n_gain = lerp(gain_or_zero(&from.noise), gain_or_zero(&to.noise), t);
@@ -85,11 +101,9 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
     let mut n_global = 0usize;
     for chunk in chunks {
         match chunk {
-            Chunk::Tone {
-                samples,
-                spec,
-            } => {
-                let mut opt_ngen: Option<NoiseGenerator> = spec.noise.map(|ns| NoiseGenerator::new(ns.color));
+            Chunk::Tone { samples, spec } => {
+                let mut opt_ngen: Option<NoiseGenerator> =
+                    spec.noise.map(|ns| NoiseGenerator::new(ns.color));
                 for _ in 0..samples {
                     let f_l = spec.carrier;
                     let f_r = spec.carrier + spec.hz;
@@ -113,8 +127,8 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
                 to,
                 curve,
             } => {
-                let from_opt_ngen: Option<NoiseGenerator> = from.noise.map(|ns| NoiseGenerator::new(ns.color));
-                let to_opt_ngen: Option<NoiseGenerator> = to.noise.map(|ns| NoiseGenerator::new(ns.color));
+                let mut from_ngen = from.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
+                let mut to_ngen = to.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
 
                 let ramp = dasp::signal::from_iter((0..samples).map(move |n| {
                     let t = if samples <= 1 {
@@ -141,8 +155,15 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
                     let (mut left, mut right) = ((TAU * phase_l).sin(), (TAU * phase_r).sin());
 
                     // Optionally, add noise.
-                    let mut opt_ngen = from_to_or_fallback(&from_opt_ngen, &to_opt_ngen, t);
-                    add_noise_and_fix_gain_in_transition(&mut left, &mut right, &from, &to, &mut opt_ngen, t);
+                    let mut opt_ngen = from_to_or_fallback(&mut from_ngen, &mut to_ngen, t);
+                    add_noise_and_fix_gain_in_transition(
+                        &mut left,
+                        &mut right,
+                        &from,
+                        &to,
+                        &mut opt_ngen,
+                        t,
+                    );
                     apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
                     sink.write_frame(left * gain, right * gain)?;
                     n_global += 1;
