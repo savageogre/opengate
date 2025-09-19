@@ -21,6 +21,13 @@ See the file at `./beats/example_entrain.yaml` which generates a binaural beat l
 
 It also customizes the theta carrier frequency at 200 Hz and delta at 100 Hz, so it sounds deeper and more relaxing.
 
+Support Development
+-------------------
+
+I just created a Patreon, [here.](https://www.patreon.com/posts/opengate-free-139241387)
+
+Feel free to support or not. The software will remain free and open-source.
+
 Disclaimer
 ----------
 
@@ -28,6 +35,8 @@ This software and its author are not related to [the Monroe Institute](https://w
 authored the related Gateway Tapes, which has a reddit community here: [/r/gatewaytapes](https://www.reddit.com/r/gatewaytapes/)
 
 This was made by [Savage Ogre](mailto:savageogre.music@gmail.com) with no affiliation to the Monroe Institute.
+
+And if you want to hear [my unrelated psytrance on Sound Cloud...](https://soundcloud.com/ogresav)
 
 Installation
 ------------
