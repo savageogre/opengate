@@ -42,8 +42,25 @@ Finally:
 
 You should see a `./target/release/opengate` binary after that.
 
+**Note:** The makefile also allows `make && make install` if you have `~/.cargo/bin` in your `$PATH`.
+
+
+Quickstart
+----------
+
+Install as mentioned above, then edit [./beats/meditation_delta.yaml](https://github.com/savageogre/opengate/blob/main/beats/meditation_delta.yaml) to your liking, and run:
+
+    opengate your_new_beat.yaml -o my_binaural_beat.wav
+
 Installation With FLAC Support
 ------------------------------
+
+FLAC support is optional since it relies on an external C library, and I figure you might just want to use something
+like [Audacity](https://www.audacityteam.org/download/) to combine sounds or export in other formats, since those are
+free.
+
+**Note: If you want to edit and make your own audio, I would suggest saving them in a loss-less format for backup,
+which would be WAV or FLAC primarily.**
 
 On ubuntu/debian based systems, first install the dependencies, as it writes out WAV or FLAC files.
 On fedora/red-hat that would be `flac-devel` or arch `flac`.
@@ -54,6 +71,10 @@ On fedora/red-hat that would be `flac-devel` or arch `flac`.
 Now build with flac:
 
     cargo build --release --features flac
+
+To use it, you literally just change the output file extension like so:
+
+    opengate mybeat.yaml -o mybeat.flac
 
 Usage
 -----
