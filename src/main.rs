@@ -1,4 +1,5 @@
 mod config;
+mod noise;
 mod render;
 mod sink;
 mod utils;
@@ -13,7 +14,7 @@ use crate::render::render;
 #[derive(Parser, Debug)]
 #[command(
     author = "Savage Ogre",
-    version = "0.1.0",
+    version,
     about = "generate binaural beats for meditative purposes"
 )]
 struct Args {

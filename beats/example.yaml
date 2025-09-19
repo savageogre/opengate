@@ -1,25 +1,37 @@
-sample_rate: 48000
-gain: 0.9
-fade_ms: 50
-
 segments:
   - type: tone
-    dur: 10.0
+    gain: 0.25
+    dur: 300.0
     carrier: 200.0
     hz: 7.0
+    noise:
+      color: pink
+      gain: 0.75
 
   - type: transition
-    dur: 10.0
+    dur: 300.0
+    curve: linear
     from:
       carrier: 200.0
       hz: 7.0
+      gain: 0.25
+      noise:
+        color: pink
+        gain: 0.75
     to:
       carrier: 100.0
       hz: 3.875
-    # or "exp" 
-    curve: linear
+      gain: 0.25
+      noise:
+        color: pink
+        gain: 0.75
 
   - type: tone
-    dur: 10.0
+    dur: 1200.0
     carrier: 100.0
     hz: 3.875
+    gain: 0.25
+    noise:
+      color: pink
+      gain: 0.75
+

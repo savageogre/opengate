@@ -1,9 +1,7 @@
-sample_rate: 48000
-gain: 0.9
-fade_ms: 50
-
 segments:
   - type: tone
+    gain: &tone_gain
+      0.25
     # 5 minutes (300s) in the theta range.
     dur: 300.0
     carrier: &start_car
@@ -11,22 +9,31 @@ segments:
     # 7hz = theta
     hz: &start_hz
       7.0
+    noise: &pink
+      color: pink
+      gain: 0.75
 
   - type: transition
-    # 10 minutes (600s) transitioning from theta (7.0 hz) to delta (3.875 hz)
-    dur: 600.0
+    # 5 minutes (300s) transitioning from theta (7.0 hz) to delta (3.875 hz)
+    dur: 300.0
     from:
       carrier: *start_car
       hz: *start_hz
+      gain: *tone_gain
+      noise: *pink
     to:
       carrier: &end_car
         100.0
       hz: &end_hz
         3.875
+      gain: *tone_gain
+      noise: *pink
     curve: linear
 
   - type: tone
-    # 15 minutes (900s) finishing up in the delta range.
-    dur: 900.0
+    # 20 minutes (1200s) finishing up in the delta range.
+    dur: 1200.0
     carrier: *end_car
     hz: *end_hz
+    gain: *tone_gain
+    noise: *pink
