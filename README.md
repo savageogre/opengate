@@ -32,11 +32,6 @@ This was made by [Savage Ogre](mailto:savageogre.music@gmail.com) with no affili
 Installation
 ------------
 
-On ubuntu/debian based systems, first install the dependencies, as it writes out WAV or FLAC files.
-On fedora/red-hat that would be `flac-devel` or arch `flac`.
-
-    sudo apt install libflac-dev
-
 Install Rust and Cargo on your system if you don't have it (try `which cargo`):
 
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -46,6 +41,19 @@ Finally:
     cargo build --release
 
 You should see a `./target/release/opengate` binary after that.
+
+Installation With FLAC Support
+------------------------------
+
+On ubuntu/debian based systems, first install the dependencies, as it writes out WAV or FLAC files.
+On fedora/red-hat that would be `flac-devel` or arch `flac`.
+
+    sudo apt update
+    sudo apt install libflac-dev
+
+Now build with flac:
+
+    cargo build --release --features flac
 
 Usage
 -----
@@ -60,7 +68,7 @@ like so:
     # WAV output (larger, uncompressed):
     opengate ./beats/test_short.yaml --out short.wav
 
-    # flac output (compressed but loss-less):
+    # flac output, if built-in (compressed but loss-less):
     opengate ./beats/test_short.yaml --out short.flac
 
 It will process the YAML file, determine how best to render the file based on the wav or flac file extension, and
