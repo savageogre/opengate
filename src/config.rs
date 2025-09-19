@@ -1,5 +1,7 @@
-use crate::utils::{ms_to_samples, secs_to_samples};
 use serde::Deserialize;
+
+use crate::noise::NoiseColor;
+use crate::utils::{ms_to_samples, secs_to_samples};
 
 /// Defaults
 const DEFAULT_SAMPLE_RATE: u32 = 48_000;
@@ -27,42 +29,72 @@ pub struct Config {
     pub segments: Vec<Segment>,
 }
 
+/// Default carrier tone should be a reasonable 200.0 Hertz.
+fn default_carrier() -> f32 {
+    200.0
+}
+
+fn default_tone_gain() -> f32 {
+    1.0
+}
+
 #[derive(Debug, Deserialize, Clone, Copy)]
 pub struct ToneSpec {
+    #[serde(default = "default_tone_gain")]
+    pub gain: f32,
     #[serde(default = "default_carrier")]
     pub carrier: f32,
     pub hz: f32,
 }
 
-/// Default carrier tone should be a reasonable 200.0 Hertz.
-fn default_carrier() -> f32 {
-    200.0
+fn default_noise_gain() -> f32 {
+    0.0
+}
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+pub struct NoiseSpec {
+    #[serde(default = "default_noise_gain")]
+    pub gain: f32,
+    pub color: NoiseColor,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Segment {
     /// Keep a steady tone for the duration `dur`.
-    Tone { dur: f32, carrier: f32, hz: f32 },
+    Tone {
+        dur: f32,
+        carrier: f32,
+        hz: f32,
+        #[serde(default = "default_tone_gain")]
+        gain: f32,
+        #[serde(default)]
+        noise: Option<NoiseSpec>,
+    },
     /// Transition from -> to across duration, with an optional curve.
     Transition {
         dur: f32,
         from: ToneSpec,
         to: ToneSpec,
         #[serde(default)]
+        noise: Option<NoiseSpec>,
+        #[serde(default)]
         curve: Option<Curve>,
     },
 }
 
+#[derive(Debug)]
 pub enum Chunk {
     Tone {
         samples: usize,
         spec: ToneSpec,
+        noise: Option<NoiseSpec>,
     },
     Transition {
         samples: usize,
         from: ToneSpec,
         to: ToneSpec,
+        noise: Option<NoiseSpec>,
         curve: Curve,
     },
 }
@@ -98,14 +130,22 @@ impl Config {
         let mut chunks: Vec<Chunk> = Vec::new();
         for seg in &self.segments {
             match seg {
-                Segment::Tone { dur, carrier, hz } => {
+                Segment::Tone {
+                    dur,
+                    gain,
+                    carrier,
+                    hz,
+                    noise,
+                } => {
                     let total = self.secs_to_samples(*dur);
                     chunks.push(Chunk::Tone {
                         samples: total,
                         spec: ToneSpec {
                             carrier: *carrier,
                             hz: *hz,
+                            gain: *gain,
                         },
+                        noise: *noise,
                     });
                 }
                 Segment::Transition {
@@ -113,16 +153,21 @@ impl Config {
                     from,
                     to,
                     curve,
+                    noise,
                 } => {
                     let total = self.secs_to_samples(*dur);
                     chunks.push(Chunk::Transition {
                         samples: total,
                         from: *from,
                         to: *to,
+                        noise: *noise,
                         curve: curve.unwrap_or(Curve::Linear),
                     });
                 }
             }
+        }
+        for (i, chunk) in chunks.iter().enumerate() {
+            println!("Chunk {}: {:?}", i, chunk);
         }
         chunks
     }

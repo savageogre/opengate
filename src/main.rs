@@ -1,4 +1,5 @@
 mod config;
+mod noise;
 mod render;
 mod sink;
 mod utils;

@@ -26,7 +26,11 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
     let mut n_global = 0usize;
     for chunk in chunks {
         match chunk {
-            Chunk::Tone { samples, spec } => {
+            Chunk::Tone {
+                samples,
+                spec,
+                noise: _,
+            } => {
                 for _ in 0..samples {
                     let f_l = spec.carrier;
                     let f_r = spec.carrier + spec.hz;
@@ -47,6 +51,7 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
                 samples,
                 from,
                 to,
+                noise: _,
                 curve,
             } => {
                 let ramp = dasp::signal::from_iter((0..samples).map(move |n| {
