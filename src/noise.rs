@@ -1,6 +1,7 @@
 use rand::Rng;
 
-/// Types of noise that can be layered with the beats
+/// Colors of noise that can be layered with the beats.
+/// Prefer pink or brown for meditative purposes.
 #[derive(Debug, Clone, Copy, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NoiseColor {

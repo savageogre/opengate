@@ -10,6 +10,9 @@ fn gain_or_zero(noise: &Option<NoiseSpec>) -> f32 {
     noise.as_ref().map(|ns| ns.gain).unwrap_or(0.0)
 }
 
+// This is a little tricky, because we want to be able to transition noise color and gain as well...
+// How do you transition from pink noise at 1.0 gain to no noise definition? You lerp to zero.
+// Or no noise to 1.0 pink noise? You have pink noise throughout, from 0 to 1.0.
 fn from_to_or_fallback<'a, T>(
     from: &'a mut Option<T>,
     to: &'a mut Option<T>,
