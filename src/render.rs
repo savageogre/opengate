@@ -1,4 +1,4 @@
-use crate::config::{Chunk, Config, NoiseSpec};
+use crate::config::{Chunk, Config, NoiseSpec, ToneSpec};
 use crate::noise::NoiseGenerator;
 use crate::sink::new_sink;
 use crate::utils::{apply_global_fade, ease, lerp};
@@ -25,6 +25,44 @@ fn from_to_or_fallback<T: Clone>(from: &Option<T>, to: &Option<T>, t: f32) -> Op
     }
 }
 
+/// There's some complexity here, where we normalize tone and noise gain if they're both provided.
+fn add_noise_and_fix_gain(left: &mut f32, right: &mut f32, spec: &ToneSpec, opt_ngen: &mut Option<NoiseGenerator>) {
+    // If this is something, we have a noise generator and noise spec.
+    if let Some(ngen) = opt_ngen.as_mut() {
+        // Normalize gain.
+        let mut n_gain = gain_or_zero(&spec.noise);
+        let mut t_gain = spec.gain;
+        let total_gain = spec.gain + n_gain;
+        n_gain /= total_gain;
+        t_gain /= total_gain;
+        *left *= t_gain;
+        *right *= t_gain;
+        let noise_val = ngen.next_sample() * n_gain;
+        *left += noise_val;
+        *right += noise_val;
+    } else {
+        *left *= spec.gain;
+        *right *= spec.gain;
+    }
+}
+
+fn add_noise_and_fix_gain_in_transition(left: &mut f32, right: &mut f32, from: &ToneSpec, to: &ToneSpec, opt_ngen: &mut Option<NoiseGenerator>, t: f32) {
+    let mut t_gain = lerp(from.gain, to.gain, t).clamp(0.0, 1.0);
+    if let Some(ngen) = opt_ngen.as_mut() {
+        let mut n_gain = lerp(gain_or_zero(&from.noise), gain_or_zero(&to.noise), t);
+        let total_gain = t_gain + n_gain;
+        t_gain /= total_gain;
+        n_gain /= total_gain;
+        *left *= t_gain;
+        *right *= t_gain;
+        let noise_val = ngen.next_sample() * n_gain;
+        *left += noise_val;
+        *right += noise_val;
+    } else {
+        *left *= t_gain;
+        *right *= t_gain;
+    }
+}
 
 /// Given a beat config and output path, write the file dynamically based on extension (WAV or
 /// FLAC).
@@ -61,20 +99,7 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
 
                     let (mut left, mut right) = ((TAU * phase_l).sin(), (TAU * phase_r).sin());
 
-                    // Optionally, add noise.
-                    if let Some(ref mut ngen) = opt_ngen {
-                        left *= spec.gain;
-                        right *= spec.gain;
-                        // We can unwrap, because it only generates an ngen here if noise was
-                        // Something.
-                        let noise_val = ngen.next_sample() * spec.noise.unwrap().gain;
-                        left += noise_val;
-                        right += noise_val;
-                    } else {
-                        left *= spec.gain;
-                        right *= spec.gain;
-                    }
-
+                    add_noise_and_fix_gain(&mut left, &mut right, &spec, &mut opt_ngen);
                     apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
                     // We write this out as f32 [-1.0, 1.0] because the sinks handle quantization/encoding, depending
                     // on the file type.
@@ -106,7 +131,6 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
 
                     let f_car = lerp(from.carrier, to.carrier, t);
                     let f_hz = lerp(from.hz, to.hz, t);
-                    let f_gain = lerp(from.gain, to.gain, t);
 
                     let f_l = f_car;
                     let f_r = f_car + f_hz;
@@ -118,20 +142,7 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
 
                     // Optionally, add noise.
                     let mut opt_ngen = from_to_or_fallback(&from_opt_ngen, &to_opt_ngen, t);
-                    if let Some(ref mut ngen) = opt_ngen {
-                        left *= f_gain;
-                        right *= f_gain;
-                        let n_gain = lerp(gain_or_zero(&from.noise), gain_or_zero(&to.noise), t);
-                        // We can unwrap, because it only generates an ngen here if noise was
-                        // Something.
-                        let noise_val = ngen.next_sample() * n_gain;
-                        left += noise_val;
-                        right += noise_val;
-                    } else {
-                        left *= f_gain;
-                        right *= f_gain;
-                    }
-
+                    add_noise_and_fix_gain_in_transition(&mut left, &mut right, &from, &to, &mut opt_ngen, t);
                     apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
                     sink.write_frame(left * gain, right * gain)?;
                     n_global += 1;

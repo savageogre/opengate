@@ -45,16 +45,20 @@ segments:
     dur: 1.0
 
     from:
+      # Gain of the tone
+      gain: 1.0
       # Starting carrier frequency
       carrier: 200.0
       # Starting binaural beat frequency
       hz: 7.0
-      gain: 0.25
       noise:
         color: pink
+        # Very quiet noise, which will ramp up to 1.0.
         gain: 0.01
 
     to:
+      # Very quiet to gain, so noise gain will take over at 1.0
+      gain: 0.01
       # Ending carrier frequency
       carrier: 100.0
       # Ending binaural beat frequency
@@ -71,6 +75,7 @@ segments:
 
   # Another final fixed tone segment after the transition, keeping at 3.875.
   - type: tone
+    gain: 0.5
     # Duration in seconds
     dur: 3.0
     # Lower carrier frequency for a more relaxed tone
@@ -79,4 +84,4 @@ segments:
     hz: 3.875
     noise:
       color: brown
-      gain: 0.7
+      gain: 0.5

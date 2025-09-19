@@ -5,7 +5,7 @@ use crate::utils::{ms_to_samples, secs_to_samples};
 
 /// Defaults
 const DEFAULT_SAMPLE_RATE: u32 = 48_000;
-const DEFAULT_GAIN: f32 = 0.9;
+const DEFAULT_GAIN: f32 = 0.95;
 const DEFAULT_FADE_MS: f32 = 50.0;
 
 #[derive(Debug, Deserialize, Clone, Copy)]
