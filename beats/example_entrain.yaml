@@ -9,8 +9,8 @@ segments:
       gain: 0.75
 
   - type: transition
-    dur: 5m
-    curve: linear
+    # 10 minutes transitioning from theta (7.0 hz) to delta (3.875 hz)
+    dur: 10m
     from:
       carrier: 200.0
       hz: 7.0
@@ -27,11 +27,11 @@ segments:
         gain: 0.75
 
   - type: tone
-    dur: 20m
+    # 15 minutes finishing up in the delta range.
+    dur: 15m
     carrier: 100.0
     hz: 3.875
     gain: 0.25
     noise:
       color: pink
       gain: 0.75
-

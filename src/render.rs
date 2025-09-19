@@ -45,8 +45,10 @@ fn add_noise_and_fix_gain(
         let mut n_gain = gain_or_zero(&spec.noise);
         let mut t_gain = spec.gain;
         let total_gain = spec.gain + n_gain;
-        n_gain /= total_gain;
-        t_gain /= total_gain;
+        if total_gain > 1.0 {
+            n_gain /= total_gain;
+            t_gain /= total_gain;
+        }
         *left *= t_gain;
         *right *= t_gain;
         let noise_val = ngen.next_sample() * n_gain;
@@ -70,8 +72,10 @@ fn add_noise_and_fix_gain_in_transition(
     if let Some(ngen) = opt_ngen.as_mut() {
         let mut n_gain = lerp(gain_or_zero(&from.noise), gain_or_zero(&to.noise), t);
         let total_gain = t_gain + n_gain;
-        t_gain /= total_gain;
-        n_gain /= total_gain;
+        if total_gain > 1.0 {
+            t_gain /= total_gain;
+            n_gain /= total_gain;
+        }
         *left *= t_gain;
         *right *= t_gain;
         let noise_val = ngen.next_sample() * n_gain;

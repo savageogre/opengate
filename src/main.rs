@@ -2,11 +2,14 @@ mod config;
 mod noise;
 mod render;
 mod sink;
+mod timeutils;
 mod utils;
 
 use clap::Parser;
+use serde_yaml::Value;
 use std::fs;
 use std::path::PathBuf;
+use yaml_merge_keys::merge_keys_serde;
 
 use crate::config::Config;
 use crate::render::render;
@@ -32,7 +35,9 @@ struct Args {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let cfg_text = fs::read_to_string(&args.config)?;
-    let cfg: Config = serde_yaml::from_str(&cfg_text)?;
+    let value: Value = serde_yaml::from_str(&cfg_text)?;
+    let merged = merge_keys_serde(value)?;
+    let cfg: Config = serde_yaml::from_value(merged)?;
     render(&cfg, &args.out)?;
     println!("Wrote beats to: {:?}", &args.out);
     Ok(())

@@ -14,7 +14,7 @@ This is called neural entrainment. Using the segments in the configuration files
 binaural beat at any frequency, with transition segments which smoothly shift from one beat frequency to another,
 helping the brain gradually follow along instead of being jolted.
 
-See the file at `./beats/entrain_theta_to_delta.yaml` which generates a binaural beat like so:
+See the file at `./beats/example_entrain.yaml` which generates a binaural beat like so:
  - 5 minutes at 7 Hz (theta)
  - 10 minutes in a linear transition from 7 Hz to 3.875 Hz (delta, for sleep or meditation)
  - finishes up with 15 minutes in 3.875 Hz (delta) so you can relax and meditate
@@ -91,7 +91,7 @@ Generally, most prefer pink or brown for meditation as they sound more calming, 
 You will want to pick a "gain" for the tone, and a gain for the noise if you add it. Let's see an example segment:
 
     - type: tone
-      dur: 60
+      dur: 60s
       gain: 0.25
       carrier: 200.0
       hz: 7.0
@@ -101,6 +101,19 @@ You will want to pick a "gain" for the tone, and a gain for the noise if you add
 
 This Tone specification above will play 200 Hz in the left ear, 207 Hz in the right ear (entraining your brain to
 7 hertz), and play pink noise 3 times louder than the tone. This will happen over 60 seconds (60 "dur" for duration).
+
+*Duration Note*: Duration can take multiple formats! All of these work:
+
+    1         # 1 second
+    0.5       # half a second (requires leading zero)
+    1s        # 1 second
+    0.5s      # half a second
+    15m       # 15 minutes
+    1.5m      # a minute and a half, or...
+    1m30s     # 1 minute and 30 seconds
+    1h30m15s  # 1 hour, 30 minutes, and 15 seconds
+    0.5h15s   # half an hour and 15 seconds
+    0.1h0.1s  # a tenth of an hour and a tenth of a second (but why?)
 
 *Gain Note*: You could technically put gain of each at 1.0, but it will normalize so that `gain_i = gain_i / total`,
 so a `gain: 1.0` for the binaural tone and `gain: 1.0` for the noise` would be equivalent to 0.5 and 0.5 respectively.
@@ -120,7 +133,7 @@ should be fine).
 This would be a potential transition:
 
     - type: transition
-      dur: 300.0
+      dur: 5m
       curve: linear
       from:
         carrier: 200.0
@@ -146,7 +159,7 @@ Thus, our full meditation beat would be thus (also in beats/example.yaml):
     segments:
       - type: tone
         gain: 0.25
-        dur: 300.0
+        dur: 5m
         carrier: 200.0
         hz: 7.0
         noise:
@@ -154,7 +167,7 @@ Thus, our full meditation beat would be thus (also in beats/example.yaml):
           gain: 0.75
 
       - type: transition
-        dur: 300.0
+        dur: 5m
         curve: linear
         from:
           carrier: 200.0
@@ -172,7 +185,7 @@ Thus, our full meditation beat would be thus (also in beats/example.yaml):
             gain: 0.75
 
       - type: tone
-        dur: 1200.0
+        dur: 20m
         carrier: 100.0
         hz: 3.875
         gain: 0.25
@@ -180,7 +193,6 @@ Thus, our full meditation beat would be thus (also in beats/example.yaml):
           color: pink
           gain: 0.75
 
-It's also possible to use [YAML anchors](https://medium.com/@kinghuang/docker-compose-anchors-aliases-extensions-a1e4105d70bd), which you can see in ./beats/entrain_theta_to_delta.yaml , which should
-produce similar audio to above.
+It's also possible to use [YAML anchors](https://medium.com/@kinghuang/docker-compose-anchors-aliases-extensions-a1e4105d70bd).
 
-See ./beats/test_short.yaml as a full documented example with all options specified.
+For a full and clean example of a beat using anchors and definitions, see ./beats/meditation_delta.yaml
