@@ -45,6 +45,8 @@ pub struct ToneSpec {
     #[serde(default = "default_carrier")]
     pub carrier: f32,
     pub hz: f32,
+    #[serde(default)]
+    pub noise: Option<NoiseSpec>,
 }
 
 fn default_noise_gain() -> f32 {
@@ -77,8 +79,6 @@ pub enum Segment {
         from: ToneSpec,
         to: ToneSpec,
         #[serde(default)]
-        noise: Option<NoiseSpec>,
-        #[serde(default)]
         curve: Option<Curve>,
     },
 }
@@ -88,13 +88,11 @@ pub enum Chunk {
     Tone {
         samples: usize,
         spec: ToneSpec,
-        noise: Option<NoiseSpec>,
     },
     Transition {
         samples: usize,
         from: ToneSpec,
         to: ToneSpec,
-        noise: Option<NoiseSpec>,
         curve: Curve,
     },
 }
@@ -144,8 +142,8 @@ impl Config {
                             carrier: *carrier,
                             hz: *hz,
                             gain: *gain,
+                            noise: *noise,
                         },
-                        noise: *noise,
                     });
                 }
                 Segment::Transition {
@@ -153,14 +151,12 @@ impl Config {
                     from,
                     to,
                     curve,
-                    noise,
                 } => {
                     let total = self.secs_to_samples(*dur);
                     chunks.push(Chunk::Transition {
                         samples: total,
                         from: *from,
                         to: *to,
-                        noise: *noise,
                         curve: curve.unwrap_or(Curve::Linear),
                     });
                 }

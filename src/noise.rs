@@ -9,6 +9,7 @@ pub enum NoiseColor {
     Brown,
 }
 
+#[derive(Debug, Clone)]
 pub struct NoiseGenerator {
     color: NoiseColor,
     pink_state: [f32; 7],
@@ -43,20 +44,14 @@ impl NoiseGenerator {
                     + self.pink_state[6]
                     + white * 0.5362;
                 self.pink_state[6] = white * 0.115926;
-                out * 0.11 // scale down
+                // Scale down
+                out * 0.11
             }
 
             NoiseColor::Brown => {
-                // Brownian noise (integrated white)
                 let white: f32 = rng.random_range(-1.0..=1.0);
                 self.brown_last += white * 0.02;
-                // clamp
-                if self.brown_last > 1.0 {
-                    self.brown_last = 1.0;
-                }
-                if self.brown_last < -1.0 {
-                    self.brown_last = -1.0;
-                }
+                self.brown_last = self.brown_last.clamp(-1.0, 1.0);
                 self.brown_last
             }
         }

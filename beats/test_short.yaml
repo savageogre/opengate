@@ -26,6 +26,12 @@ segments:
     # Right ear = carrier + hz (207 Hz)
     # This produces a 7 Hz binaural beat, which is in the theta range.
     hz: 7.0
+    # This doesn't need to be specified, but otherwise you can provide optional noise per segment.
+    noise:
+      # Color options are: pink, white, brown.
+      # Default is: pink
+      color: pink
+      gain: 0.4
 
   # A gradual glide from one tone to another.
   # This allows "entrainment", the process of nudging the brain’s rhythms to follow an external beat.
@@ -44,12 +50,18 @@ segments:
       # Starting binaural beat frequency
       hz: 7.0
       gain: 0.25
+      noise:
+        color: pink
+        gain: 0.01
 
     to:
       # Ending carrier frequency
       carrier: 100.0
       # Ending binaural beat frequency
       hz: 3.875
+      noise:
+        color: pink
+        gain: 1.0
 
     # This chooses how the transition interpolates.
     # You have two options:
@@ -65,3 +77,6 @@ segments:
     carrier: 100.0
     # Beat frequency in the delta range
     hz: 3.875
+    noise:
+      color: brown
+      gain: 0.7
