@@ -163,9 +163,12 @@ impl Config {
                 }
             }
         }
+        /*
+        TODO: add logging
         for (i, chunk) in chunks.iter().enumerate() {
             eprintln!("Chunk {}: {:?}", i, chunk);
         }
+        */
         chunks
     }
 }

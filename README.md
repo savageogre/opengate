@@ -14,7 +14,7 @@ This is called neural entrainment. Using the segments in the configuration files
 binaural beat at any frequency, with transition segments which smoothly shift from one beat frequency to another,
 helping the brain gradually follow along instead of being jolted.
 
-See the file at `./beats/entrain_theta_to_delta.yaml` which generates a binaural beat like so:
+See the file at `./beats/example_entrain.yaml` which generates a binaural beat like so:
  - 5 minutes at 7 Hz (theta)
  - 10 minutes in a linear transition from 7 Hz to 3.875 Hz (delta, for sleep or meditation)
  - finishes up with 15 minutes in 3.875 Hz (delta) so you can relax and meditate
@@ -193,7 +193,6 @@ Thus, our full meditation beat would be thus (also in beats/example.yaml):
           color: pink
           gain: 0.75
 
-It's also possible to use [YAML anchors](https://medium.com/@kinghuang/docker-compose-anchors-aliases-extensions-a1e4105d70bd), which you can see in ./beats/entrain_theta_to_delta.yaml , which should
-produce similar audio to above.
+It's also possible to use [YAML anchors](https://medium.com/@kinghuang/docker-compose-anchors-aliases-extensions-a1e4105d70bd).
 
-See ./beats/test_short.yaml as a full documented example with all options specified.
+For a full and clean example of a beat using anchors and definitions, see ./beats/meditation_delta.yaml
