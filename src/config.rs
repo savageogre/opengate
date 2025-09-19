@@ -1,6 +1,7 @@
 use serde::Deserialize;
 
 use crate::noise::NoiseColor;
+use crate::timeutils::DurationSeconds;
 use crate::utils::{ms_to_samples, secs_to_samples};
 
 /// Defaults
@@ -65,7 +66,7 @@ pub struct NoiseSpec {
 pub enum Segment {
     /// Keep a steady tone for the duration `dur`.
     Tone {
-        dur: f32,
+        dur: DurationSeconds,
         carrier: f32,
         hz: f32,
         #[serde(default = "default_tone_gain")]
@@ -75,7 +76,7 @@ pub enum Segment {
     },
     /// Transition from -> to across duration, with an optional curve.
     Transition {
-        dur: f32,
+        dur: DurationSeconds,
         from: ToneSpec,
         to: ToneSpec,
         #[serde(default)]
@@ -135,7 +136,7 @@ impl Config {
                     hz,
                     noise,
                 } => {
-                    let total = self.secs_to_samples(*dur);
+                    let total = self.secs_to_samples(dur.0);
                     chunks.push(Chunk::Tone {
                         samples: total,
                         spec: ToneSpec {
@@ -152,7 +153,7 @@ impl Config {
                     to,
                     curve,
                 } => {
-                    let total = self.secs_to_samples(*dur);
+                    let total = self.secs_to_samples(dur.0);
                     chunks.push(Chunk::Transition {
                         samples: total,
                         from: *from,

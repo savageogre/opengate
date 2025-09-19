@@ -1,7 +1,7 @@
 segments:
   - type: tone
     gain: 0.25
-    dur: 300.0
+    dur: 5m
     carrier: 200.0
     hz: 7.0
     noise:
@@ -9,7 +9,7 @@ segments:
       gain: 0.75
 
   - type: transition
-    dur: 300.0
+    dur: 5m
     curve: linear
     from:
       carrier: 200.0
@@ -27,7 +27,7 @@ segments:
         gain: 0.75
 
   - type: tone
-    dur: 1200.0
+    dur: 20m
     carrier: 100.0
     hz: 3.875
     gain: 0.25
