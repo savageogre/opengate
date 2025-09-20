@@ -3,6 +3,7 @@ mod noise;
 mod render;
 mod sink;
 mod timeutils;
+mod tts;
 mod utils;
 
 use clap::Parser;
