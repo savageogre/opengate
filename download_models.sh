@@ -2,6 +2,7 @@
 set -euo pipefail
 
 modeldata=$(cat <<'EOF'
+en,en_US,kristin,medium
 en,en_US,amy,medium
 en,en_US,reza_ibrahim,medium
 EOF
@@ -14,9 +15,13 @@ function download-model() {
     size="$4"
     url="https://huggingface.co/rhasspy/piper-voices/resolve/main/$shortlang/$lang/$name/$size/$lang-$name-$size.onnx"
     lpath="./models/$lang-$name-$size.onnx"
-    echo "Getting $lpath from $url"
-    wget "$url" -O "$lpath"
-    wget "$url.json" -O "$lpath.json"
+    if [[ ! -f "$lpath" ]] ; then
+        echo "Getting $lpath from $url"
+        wget "$url" -O "$lpath"
+        wget "$url.json" -O "$lpath.json"
+    else
+        echo "Skipping $lpath because it looks like you have it."
+    fi
 }
 
 mkdir -p models
