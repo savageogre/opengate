@@ -1,10 +1,12 @@
 use clap::Parser;
+use log::info;
 use serde_yaml::Value;
 use std::fs;
 use std::path::PathBuf;
 use yaml_merge_keys::merge_keys_serde;
 
 use opengate::config::Config;
+use opengate::logger;
 use opengate::render::render;
 
 #[derive(Parser, Debug)]
@@ -26,12 +28,13 @@ struct Args {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    logger::init();
     let args = Args::parse();
     let cfg_text = fs::read_to_string(&args.config)?;
     let value: Value = serde_yaml::from_str(&cfg_text)?;
     let merged = merge_keys_serde(value)?;
     let cfg: Config = serde_yaml::from_value(merged)?;
     render(&cfg, &args.out)?;
-    println!("Wrote beats to: {:?}", &args.out);
+    info!("Wrote beats to: {:?}", &args.out);
     Ok(())
 }

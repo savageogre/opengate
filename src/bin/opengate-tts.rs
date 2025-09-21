@@ -1,6 +1,8 @@
 use clap::Parser;
+use log::info;
 use std::fs;
 
+use opengate::logger;
 use opengate::tts::run_piper;
 
 #[derive(Parser, Debug)]
@@ -31,6 +33,7 @@ struct Args {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    logger::init();
     let args = Args::parse();
     let text = fs::read_to_string(&args.input)?;
 
@@ -42,6 +45,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &args.out,
     )?;
 
-    println!("TTS wrote: {}", args.out);
+    info!("TTS wrote: {}", args.out);
     Ok(())
 }

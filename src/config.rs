@@ -50,8 +50,39 @@ pub struct ToneSpec {
     pub noise: Option<NoiseSpec>,
 }
 
+fn default_offset() -> DurationSeconds {
+    DurationSeconds(0.0f32)
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct TTSSpec {
+    #[serde(default = "default_offset")]
+    pub offset: DurationSeconds,
+    pub text: String,
+    /// Key is used for caching. Otherwise, it'd calculate the sha256 hash of the
+    /// model::config::text
+    pub key: Option<String>,
+    pub model: String,
+    pub config: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct AudioSpec {
+    #[serde(default = "default_offset")]
+    pub offset: DurationSeconds,
+    pub path: String,
+}
+
 fn default_noise_gain() -> f32 {
     0.0
+}
+
+/// Something to mix in over a Segment (eg: play audio or TTS)
+#[derive(Debug, Deserialize, Clone)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum AudioMixin {
+    File(AudioSpec),
+    TTS(TTSSpec),
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]
@@ -73,6 +104,8 @@ pub enum Segment {
         gain: f32,
         #[serde(default)]
         noise: Option<NoiseSpec>,
+        #[serde(default)]
+        audio: Vec<AudioMixin>,
     },
     /// Transition from -> to across duration, with an optional curve.
     Transition {
@@ -81,6 +114,8 @@ pub enum Segment {
         to: ToneSpec,
         #[serde(default)]
         curve: Option<Curve>,
+        #[serde(default)]
+        audio: Vec<AudioMixin>,
     },
 }
 
@@ -135,6 +170,7 @@ impl Config {
                     carrier,
                     hz,
                     noise,
+                    audio: _audio,
                 } => {
                     let total = self.secs_to_samples(dur.0);
                     chunks.push(Chunk::Tone {
@@ -152,6 +188,7 @@ impl Config {
                     from,
                     to,
                     curve,
+                    audio: _audio,
                 } => {
                     let total = self.secs_to_samples(dur.0);
                     chunks.push(Chunk::Transition {
