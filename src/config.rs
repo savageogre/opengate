@@ -1,5 +1,8 @@
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
 
+use crate::fileutils::resolve_relative;
 use crate::noise::NoiseColor;
 use crate::timeutils::DurationSeconds;
 use crate::utils::{ms_to_samples, secs_to_samples};
@@ -27,8 +30,24 @@ pub struct Config {
     #[serde(default)]
     pub fade_ms: Option<f32>,
 
+    /// A path to the working directory where it caches the results of generated audio, or looks
+    /// for audio file mixins
+    #[serde(default)]
+    pub audio_dir: Option<PathBuf>,
+    #[serde(skip)]
+    pub _audio_dir: PathBuf,
+
+    /// A path to the directory with onnx model files and onnx.json configs
+    #[serde(default)]
+    pub model_dir: Option<PathBuf>,
+    #[serde(skip)]
+    pub _model_dir: PathBuf,
+
     /// The sequence of audio segments
     pub segments: Vec<Segment>,
+
+    #[serde(skip)]
+    pub _normalized: bool,
 }
 
 /// Default carrier tone should be a reasonable 200.0 Hertz.
@@ -65,6 +84,53 @@ pub struct TTSSpec {
     pub key: Option<String>,
     pub model: String,
     pub config: Option<String>,
+    #[serde(skip)]
+    _model_path: PathBuf,
+    #[serde(skip)]
+    _config_path: PathBuf,
+    #[serde(skip)]
+    _out_path: PathBuf,
+}
+
+impl TTSSpec {
+    pub fn init_paths(&mut self, cfg: &Config) -> std::io::Result<()> {
+        if !cfg._normalized {
+            panic!("Config file paths like model_dir were NOT normalized! Can't init paths for tts spec.");
+        }
+        self._model_path = cfg._model_dir.join(self.model.clone());
+        self._config_path = cfg._model_dir.join(format!("{}.json", self.model.clone()));
+        if let Some(config_str) = &self.config {
+            self._config_path = cfg._model_dir.join(config_str);
+        }
+
+        self._model_path = std::fs::canonicalize(&self._model_path)?;
+        self._config_path = std::fs::canonicalize(&self._config_path)?;
+        let key = self.get_key();
+        debug!("canonicalized model path and config path for key {}", key);
+
+        self._out_path = cfg._audio_dir.join(format!("_tts_{}", key));
+        Ok(())
+    }
+
+    /// Get or calculate the key being used to cache the output file.
+    /// This is calculated with:
+    ///     sha256(abs_model_path . "::" . abs_config_path . "::" . trimmed_text_as_bytes)
+    fn get_key(&self) -> String {
+        if let Some(k) = &self.key {
+            return k.trim().to_string().clone();
+        }
+        let mut hasher = Sha256::new();
+
+        hasher.update(self._model_path.to_string_lossy().as_bytes());
+        hasher.update("::");
+        hasher.update(self._config_path.to_string_lossy().as_bytes());
+        hasher.update("::");
+        hasher.update(self.text.trim().as_bytes());
+
+        // Finalize.
+        let digest = hasher.finalize();
+        hex::encode(digest)
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -72,6 +138,22 @@ pub struct AudioSpec {
     #[serde(default = "default_offset")]
     pub offset: DurationSeconds,
     pub path: String,
+    #[serde(skip)]
+    _path: PathBuf,
+}
+
+impl AudioSpec {
+    pub fn init_paths(&mut self, cfg: &Config) -> std::io::Result<()> {
+        if !cfg._normalized {
+            panic!("Config file paths like model_dir were NOT normalized! Can't init paths for audio file spec.");
+        }
+        self._path = cfg._audio_dir.join(&self.path);
+
+        self._path =std::fs::canonicalize(&self._path)?;
+        debug!("canonicalized path for file {} to {:?}", self.path, self._path);
+
+        Ok(())
+    }
 }
 
 fn default_noise_gain() -> f32 {
@@ -80,7 +162,7 @@ fn default_noise_gain() -> f32 {
 
 /// Something to mix in over a Segment (eg: play audio or TTS)
 #[derive(Debug, Deserialize, Clone)]
-#[serde(tag = "kind", rename_all = "lowercase")]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum AudioMixin {
     File(AudioSpec),
     TTS(TTSSpec),
@@ -144,6 +226,16 @@ impl Chunk {
 }
 
 impl Config {
+    pub fn normalize_paths(&mut self, config_path: &Path) {
+        let base = config_path.parent().unwrap_or_else(|| Path::new("."));
+
+        self._audio_dir =
+            resolve_relative(base, &self.audio_dir).unwrap_or_else(|| PathBuf::from("."));
+        self._model_dir =
+            resolve_relative(base, &self.model_dir).unwrap_or_else(|| PathBuf::from("."));
+
+        self._normalized = true;
+    }
     pub fn ms_to_samples(&self, ms: f32) -> usize {
         ms_to_samples(ms, self.get_sample_rate())
     }
@@ -161,9 +253,10 @@ impl Config {
     }
 
     /// Build a flat plan of samples to render by iterating segments
-    pub fn create_chunks(&self) -> Vec<Chunk> {
+    pub fn create_chunks(mut self) -> Vec<Chunk> {
         let mut chunks: Vec<Chunk> = Vec::new();
-        for seg in &self.segments {
+        let sr = self.get_sample_rate();
+        for seg in self.segments.iter_mut() {
             match seg {
                 Segment::Tone {
                     dur,
@@ -171,9 +264,21 @@ impl Config {
                     carrier,
                     hz,
                     noise,
-                    audio: _audio,
+                    audio,
                 } => {
-                    let total = self.secs_to_samples(dur.0);
+                    let total = secs_to_samples(dur.0, sr);
+                    for mixin in audio.iter_mut() {
+                        match mixin {
+                            AudioMixin::File(audio_spec) => {
+                                debug!("found audio spec {:?}", audio_spec);
+                                audio_spec.init_paths(self);
+                            }
+                            AudioMixin::TTS(tts_spec) => {
+                                debug!("found tts spec {:?}", tts_spec);
+                                tts_spec.init_paths(self);
+                            }
+                        }
+                    }
                     chunks.push(Chunk::Tone {
                         samples: total,
                         spec: ToneSpec {
@@ -191,7 +296,7 @@ impl Config {
                     curve,
                     audio: _audio,
                 } => {
-                    let total = self.secs_to_samples(dur.0);
+                    let total = secs_to_samples(dur.0, sr);
                     chunks.push(Chunk::Transition {
                         samples: total,
                         from: *from,

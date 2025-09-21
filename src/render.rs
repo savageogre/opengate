@@ -1,7 +1,7 @@
 use crate::config::{Chunk, Config, NoiseSpec, ToneSpec};
 use crate::noise::NoiseGenerator;
 use crate::sink::new_sink;
-use crate::utils::{apply_global_fade, ease, lerp};
+use crate::utils::{apply_global_fade, ease, lerp, ms_to_samples};
 /// Does the actual audio rendering magic.
 use dasp::signal::Signal;
 use std::f32::consts::TAU;
@@ -89,7 +89,7 @@ fn add_noise_and_fix_gain_in_transition(
 
 /// Given a beat config and output path, write the file dynamically based on extension (WAV or
 /// FLAC).
-pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn render(cfg: Config, out: &str) -> Result<(), Box<dyn std::error::Error>> {
     let sample_rate = cfg.get_sample_rate();
     let gain = cfg.get_gain();
     let fade_ms = cfg.get_fade_ms();
@@ -99,7 +99,7 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
     let mut sink = new_sink(out, sample_rate)?;
 
     let total_samples: usize = chunks.iter().map(|c| c.samples()).sum();
-    let fade_len = cfg.ms_to_samples(fade_ms).min(total_samples / 2).max(1);
+    let fade_len = ms_to_samples(fade_ms, sample_rate).min(total_samples / 2).max(1);
 
     // Phase accumulators
     let mut phase_l = 0.0_f32;

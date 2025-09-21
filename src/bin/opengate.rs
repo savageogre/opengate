@@ -18,6 +18,7 @@ use opengate::render::render;
 struct Args {
     /// YAML configuration file
     config: PathBuf,
+
     #[arg(
         short,
         long,
@@ -25,6 +26,7 @@ struct Args {
         help = "output file, supporting wav or flac"
     )]
     out: String,
+
     #[arg(short = 'v', long = "verbose", help = "verbose level logging")]
     verbose: bool,
 }
@@ -35,7 +37,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg_text = fs::read_to_string(&args.config)?;
     let value: Value = serde_yaml::from_str(&cfg_text)?;
     let merged = merge_keys_serde(value)?;
-    let cfg: Config = serde_yaml::from_value(merged)?;
+    let mut cfg: Config = serde_yaml::from_value(merged)?;
+    cfg.normalize_paths(&args.config);
     render(&cfg, &args.out)?;
     info!("Wrote beats to: {:?}", &args.out);
     Ok(())

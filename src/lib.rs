@@ -1,4 +1,5 @@
 pub mod config;
+pub mod fileutils;
 pub mod logger;
 pub mod noise;
 pub mod render;
