@@ -1,3 +1,4 @@
+use log::warn;
 use std::error::Error;
 
 #[derive(Debug, Clone, Copy)]
@@ -58,7 +59,7 @@ fn detect_format_from_ext(out: &str) -> AudioFormat {
         #[allow(dead_code)]
         #[cfg(not(feature = "flac"))]
         "flac" => {
-            eprintln!(
+            warn!(
                 "File extension was flac, however flac feature was not enabled during build. Using WAV."
             );
             AudioFormat::Wav
@@ -68,7 +69,7 @@ fn detect_format_from_ext(out: &str) -> AudioFormat {
 
         // In the future, let's error out. But WAV for now.
         other => {
-            eprintln!(
+            warn!(
                 "File extension was {:?}, writing WAV (only wav and flav supported).",
                 other
             );

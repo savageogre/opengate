@@ -1,3 +1,4 @@
+use log::{debug, info, warn};
 use std::io::Write;
 /// Text to speech using piper/piper-rs
 /// See models in ./text_to_speech/models directory, eg: en_US-amy-medium.onnx
@@ -30,15 +31,20 @@ pub fn run_piper(
         .stdin(Stdio::piped())
         .spawn()?;
 
+    debug!("Spawned piper child, writing text to stdin...");
+
     // Write text to Piper's stdin.
     if let Some(stdin) = child.stdin.as_mut() {
         stdin.write_all(text.as_bytes())?;
     }
 
     // Wait for Piper to finish.
+    debug!("Waiting for piper...");
     let status = child.wait()?;
     if !status.success() {
-        eprintln!("Piper exited with status: {:?}", status);
+        warn!("Piper exited with error status: {:?}", status);
+    } else {
+        info!("piper exited successfully and wrote: {:?}", output_path);
     }
 
     Ok(())

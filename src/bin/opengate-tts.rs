@@ -11,7 +11,7 @@ struct Args {
         short,
         long,
         default_value = "piper",
-        help = "optional path to piper binary if it's not in your path"
+        help = "optional path to piper binary if it's not in your $PATH"
     )]
     piper_bin: Option<String>,
 
