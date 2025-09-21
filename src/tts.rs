@@ -1,37 +1,45 @@
-use piper_rs::{Piper, PiperConfig};
+use std::io::Write;
 /// Text to speech using piper/piper-rs
-/// See models in ./models directory, eg: models/en_US-amy-medium.onnx
+/// See models in ./text_to_speech/models directory, eg: en_US-amy-medium.onnx
 /// Each should have its own onnx file and that file + ".json" as its config, which is expected
 /// below.
-use std::fs;
-use std::path::Path;
+/// I tried to integrate piper, but the ort dependency was killing me. It's much easier to just run
+/// their binary - and that source and linux x86/64 binary is included in the repo in
+/// ./text_to_speech
+/// Piper needs to be in your path or the path to the binary passed in manually.
+use std::process::{Command, Stdio};
 
-use crate::sink::new_sink;
-
-/// Generate speech from a string and write to a sink (FLAC is possible if you build with support).
-/// File type is chosen by the out file extension.
-pub fn text_to_sink(
+pub fn run_piper(
+    piper_bin: Option<&str>,
     text: &str,
     model_path: &str,
-    out: &str,
     config_path: Option<&str>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Load Piper model and config.
-    let config_path = config_path
-        .map(|p| p.to_string())
-        .unwrap_or_else(|| format!("{model_path}.json"));
-    let model = Piper::load(Path::new(model_path), Path::new(&config_path))?;
-    let sample_rate = model.config.sample_rate;
-    let cfg = PiperConfig::default();
+    output_path: &str,
+) -> std::io::Result<()> {
+    let piper_bin = piper_bin.unwrap_or("piper");
+    let config_path: String = config_path
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| format!("{}.json", model_path));
+    let mut child = Command::new(piper_bin)
+        .arg("-m")
+        .arg(model_path)
+        .arg("-c")
+        .arg(&config_path)
+        .arg("-f")
+        .arg(output_path)
+        .stdin(Stdio::piped())
+        .spawn()?;
 
-    // mono f32 samples
-    let audio = model.synthesize(&text, &cfg)?;
-    // The sample rate actually comes from the config. The TTS AI is literally trained with a
-    // sample rate, so we have to use what it provides in the `$.audio.sample_rate` field.
-    let mut sink = new_sink(out, sample_rate)?;
-    for sample in audio {
-        sink.write_sample(sample)?;
+    // Write text to Piper's stdin.
+    if let Some(stdin) = child.stdin.as_mut() {
+        stdin.write_all(text.as_bytes())?;
     }
-    sink.finalize()?;
+
+    // Wait for Piper to finish.
+    let status = child.wait()?;
+    if !status.success() {
+        eprintln!("Piper exited with status: {:?}", status);
+    }
+
     Ok(())
 }
