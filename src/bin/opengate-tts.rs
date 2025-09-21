@@ -30,11 +30,15 @@ struct Args {
 
     #[arg(short, long, default_value = "opengate-tts.wav", help = "output file")]
     out: String,
+
+    #[arg(short = 'v', long = "verbose", help = "verbose level logging")]
+    verbose: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    logger::init();
     let args = Args::parse();
+    logger::init(args.verbose);
+
     let text = fs::read_to_string(&args.input)?;
 
     run_piper(

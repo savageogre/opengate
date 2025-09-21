@@ -25,11 +25,13 @@ struct Args {
         help = "output file, supporting wav or flac"
     )]
     out: String,
+    #[arg(short = 'v', long = "verbose", help = "verbose level logging")]
+    verbose: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    logger::init();
     let args = Args::parse();
+    logger::init(args.verbose);
     let cfg_text = fs::read_to_string(&args.config)?;
     let value: Value = serde_yaml::from_str(&cfg_text)?;
     let merged = merge_keys_serde(value)?;

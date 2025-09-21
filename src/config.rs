@@ -3,6 +3,7 @@ use serde::Deserialize;
 use crate::noise::NoiseColor;
 use crate::timeutils::DurationSeconds;
 use crate::utils::{ms_to_samples, secs_to_samples};
+use log::debug;
 
 /// Defaults
 const DEFAULT_SAMPLE_RATE: u32 = 48_000;
@@ -200,12 +201,9 @@ impl Config {
                 }
             }
         }
-        /*
-        TODO: add logging
         for (i, chunk) in chunks.iter().enumerate() {
-            eprintln!("Chunk {}: {:?}", i, chunk);
+            debug!("Chunk {}: {:?}", i, chunk);
         }
-        */
         chunks
     }
 }
