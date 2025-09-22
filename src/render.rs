@@ -1,7 +1,7 @@
 use crate::config::{Chunk, Config, NoiseSpec, ToneSpec};
 use crate::noise::NoiseGenerator;
 use crate::sink::new_sink;
-use crate::utils::{apply_global_fade, ease, lerp};
+use crate::utils::{apply_global_fade, ease, lerp, ms_to_samples};
 /// Does the actual audio rendering magic.
 use dasp::signal::Signal;
 use std::f32::consts::TAU;
@@ -89,17 +89,24 @@ fn add_noise_and_fix_gain_in_transition(
 
 /// Given a beat config and output path, write the file dynamically based on extension (WAV or
 /// FLAC).
-pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn render(
+    cfg: Config,
+    out: &str,
+    piper_bin: Option<&str>,
+    force: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let sample_rate = cfg.get_sample_rate();
     let gain = cfg.get_gain();
     let fade_ms = cfg.get_fade_ms();
     let dt = 1.0_f32 / sample_rate as f32;
-    let chunks = cfg.create_chunks();
+    let chunks = cfg.create_chunks(piper_bin, force)?;
 
     let mut sink = new_sink(out, sample_rate)?;
 
     let total_samples: usize = chunks.iter().map(|c| c.samples()).sum();
-    let fade_len = cfg.ms_to_samples(fade_ms).min(total_samples / 2).max(1);
+    let fade_len = ms_to_samples(fade_ms, sample_rate)
+        .min(total_samples / 2)
+        .max(1);
 
     // Phase accumulators
     let mut phase_l = 0.0_f32;
@@ -107,11 +114,21 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
 
     let mut n_global = 0usize;
     for chunk in chunks {
+        let mut mixin_vec: Vec<f32> = vec![0.0; chunk.samples()];
+        let mixin_dest: &mut [f32] = &mut mixin_vec;
         match chunk {
-            Chunk::Tone { samples, spec } => {
+            Chunk::Tone {
+                samples,
+                spec,
+                mixins,
+            } => {
+                for mixin in mixins {
+                    mixin.render(mixin_dest, sample_rate)?;
+                }
                 let mut opt_ngen: Option<NoiseGenerator> =
                     spec.noise.map(|ns| NoiseGenerator::new(ns.color));
-                for _ in 0..samples {
+                #[allow(clippy::needless_range_loop)]
+                for idx in 0..samples {
                     let f_l = spec.carrier;
                     let f_r = spec.carrier + spec.hz;
 
@@ -121,6 +138,8 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
                     let (mut left, mut right) = ((TAU * phase_l).sin(), (TAU * phase_r).sin());
 
                     add_noise_and_fix_gain(&mut left, &mut right, &spec, &mut opt_ngen);
+                    left += mixin_dest[idx];
+                    right += mixin_dest[idx];
                     apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
                     // We write this out as f32 [-1.0, 1.0] because the sinks handle quantization/encoding, depending
                     // on the file type.
@@ -133,7 +152,11 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
                 from,
                 to,
                 curve,
+                mixins,
             } => {
+                for mixin in mixins {
+                    mixin.render(mixin_dest, sample_rate)?;
+                }
                 let mut from_ngen = from.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
                 let mut to_ngen = to.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
 
@@ -147,7 +170,8 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
                 }));
 
                 let mut ramp_iter = ramp;
-                for _ in 0..samples {
+                #[allow(clippy::needless_range_loop)]
+                for idx in 0..samples {
                     let t = ramp_iter.next();
 
                     let f_car = lerp(from.carrier, to.carrier, t);
@@ -171,6 +195,8 @@ pub fn render(cfg: &Config, out: &str) -> Result<(), Box<dyn std::error::Error>>
                         &mut opt_ngen,
                         t,
                     );
+                    left += mixin_dest[idx];
+                    right += mixin_dest[idx];
                     apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
                     sink.write_frame(left * gain, right * gain)?;
                     n_global += 1;
