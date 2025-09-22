@@ -4,6 +4,8 @@ OPENGATE = $(RDIR)opengate
 
 all: lint opengate
 
+i: lint opengate install
+
 install-ubuntu-flac-deps:
 	sudo apt update
 	sudo apt install libflac-dev -y

@@ -89,12 +89,16 @@ fn add_noise_and_fix_gain_in_transition(
 
 /// Given a beat config and output path, write the file dynamically based on extension (WAV or
 /// FLAC).
-pub fn render(cfg: Config, out: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn render(
+    cfg: Config,
+    out: &str,
+    piper_bin: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let sample_rate = cfg.get_sample_rate();
     let gain = cfg.get_gain();
     let fade_ms = cfg.get_fade_ms();
     let dt = 1.0_f32 / sample_rate as f32;
-    let chunks = cfg.create_chunks()?;
+    let chunks = cfg.create_chunks(piper_bin)?;
 
     let mut sink = new_sink(out, sample_rate)?;
 

@@ -16,6 +16,14 @@ use opengate::render::render;
     about = "generate binaural beats for meditative purposes"
 )]
 struct Args {
+    #[arg(
+        short,
+        long,
+        default_value = "piper",
+        help = "optional path to piper binary if it's not in your $PATH"
+    )]
+    piper_bin: Option<String>,
+
     /// YAML configuration file
     config: PathBuf,
 
@@ -38,8 +46,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let value: Value = serde_yaml::from_str(&cfg_text)?;
     let merged = merge_keys_serde(value)?;
     let mut cfg: Config = serde_yaml::from_value(merged)?;
+    // This *MUST* run before render because audio and tts specs func init_paths uses the calculated paths.
     cfg.normalize_paths(&args.config);
-    render(cfg, &args.out)?;
+    render(cfg, &args.out, args.piper_bin.as_deref())?;
     info!("Wrote beats to: {:?}", &args.out);
     Ok(())
 }
