@@ -39,7 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let merged = merge_keys_serde(value)?;
     let mut cfg: Config = serde_yaml::from_value(merged)?;
     cfg.normalize_paths(&args.config);
-    render(&cfg, &args.out)?;
+    render(cfg, &args.out)?;
     info!("Wrote beats to: {:?}", &args.out);
     Ok(())
 }

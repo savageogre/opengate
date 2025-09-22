@@ -94,12 +94,14 @@ pub fn render(cfg: Config, out: &str) -> Result<(), Box<dyn std::error::Error>> 
     let gain = cfg.get_gain();
     let fade_ms = cfg.get_fade_ms();
     let dt = 1.0_f32 / sample_rate as f32;
-    let chunks = cfg.create_chunks();
+    let chunks = cfg.create_chunks()?;
 
     let mut sink = new_sink(out, sample_rate)?;
 
     let total_samples: usize = chunks.iter().map(|c| c.samples()).sum();
-    let fade_len = ms_to_samples(fade_ms, sample_rate).min(total_samples / 2).max(1);
+    let fade_len = ms_to_samples(fade_ms, sample_rate)
+        .min(total_samples / 2)
+        .max(1);
 
     // Phase accumulators
     let mut phase_l = 0.0_f32;

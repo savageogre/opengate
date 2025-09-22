@@ -93,14 +93,11 @@ pub struct TTSSpec {
 }
 
 impl TTSSpec {
-    pub fn init_paths(&mut self, cfg: &Config) -> std::io::Result<()> {
-        if !cfg._normalized {
-            panic!("Config file paths like model_dir were NOT normalized! Can't init paths for tts spec.");
-        }
-        self._model_path = cfg._model_dir.join(self.model.clone());
-        self._config_path = cfg._model_dir.join(format!("{}.json", self.model.clone()));
+    pub fn init_paths(&mut self, audio_dir: &Path, model_dir: &Path) -> std::io::Result<()> {
+        self._model_path = model_dir.join(self.model.clone());
+        self._config_path = model_dir.join(format!("{}.json", self.model.clone()));
         if let Some(config_str) = &self.config {
-            self._config_path = cfg._model_dir.join(config_str);
+            self._config_path = model_dir.join(config_str);
         }
 
         self._model_path = std::fs::canonicalize(&self._model_path)?;
@@ -108,7 +105,7 @@ impl TTSSpec {
         let key = self.get_key();
         debug!("canonicalized model path and config path for key {}", key);
 
-        self._out_path = cfg._audio_dir.join(format!("_tts_{}", key));
+        self._out_path = audio_dir.join(format!("_tts_{}", key));
         Ok(())
     }
 
@@ -143,14 +140,14 @@ pub struct AudioSpec {
 }
 
 impl AudioSpec {
-    pub fn init_paths(&mut self, cfg: &Config) -> std::io::Result<()> {
-        if !cfg._normalized {
-            panic!("Config file paths like model_dir were NOT normalized! Can't init paths for audio file spec.");
-        }
-        self._path = cfg._audio_dir.join(&self.path);
+    pub fn init_paths(&mut self, audio_dir: &Path) -> std::io::Result<()> {
+        self._path = audio_dir.join(&self.path);
 
-        self._path =std::fs::canonicalize(&self._path)?;
-        debug!("canonicalized path for file {} to {:?}", self.path, self._path);
+        self._path = std::fs::canonicalize(&self._path)?;
+        debug!(
+            "canonicalized path for file {} to {:?}",
+            self.path, self._path
+        );
 
         Ok(())
     }
@@ -253,9 +250,11 @@ impl Config {
     }
 
     /// Build a flat plan of samples to render by iterating segments
-    pub fn create_chunks(mut self) -> Vec<Chunk> {
+    pub fn create_chunks(mut self) -> Result<Vec<Chunk>, std::io::Error> {
         let mut chunks: Vec<Chunk> = Vec::new();
         let sr = self.get_sample_rate();
+        let model_dir = self._model_dir;
+        let audio_dir = self._audio_dir;
         for seg in self.segments.iter_mut() {
             match seg {
                 Segment::Tone {
@@ -271,11 +270,11 @@ impl Config {
                         match mixin {
                             AudioMixin::File(audio_spec) => {
                                 debug!("found audio spec {:?}", audio_spec);
-                                audio_spec.init_paths(self);
+                                audio_spec.init_paths(&audio_dir)?;
                             }
                             AudioMixin::TTS(tts_spec) => {
                                 debug!("found tts spec {:?}", tts_spec);
-                                tts_spec.init_paths(self);
+                                tts_spec.init_paths(&audio_dir, &model_dir)?;
                             }
                         }
                     }
@@ -309,6 +308,6 @@ impl Config {
         for (i, chunk) in chunks.iter().enumerate() {
             debug!("Chunk {}: {:?}", i, chunk);
         }
-        chunks
+        Ok(chunks)
     }
 }
