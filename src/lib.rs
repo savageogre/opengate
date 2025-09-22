@@ -1,6 +1,7 @@
 pub mod config;
 pub mod fileutils;
 pub mod logger;
+pub mod mixin;
 pub mod noise;
 pub mod render;
 pub mod sink;

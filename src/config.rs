@@ -75,10 +75,20 @@ fn default_offset() -> DurationSeconds {
     DurationSeconds(0.0f32)
 }
 
+fn default_tts_gain() -> f32 {
+    1.0f32
+}
+
+fn default_audio_gain() -> f32 {
+    1.0f32
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct TTSSpec {
     #[serde(default = "default_offset")]
     pub offset: DurationSeconds,
+    #[serde(default = "default_tts_gain")]
+    pub gain: f32,
     pub text: String,
     /// Key is used for caching. Otherwise, it'd calculate the sha256 hash of the
     /// model::config::text
@@ -90,7 +100,7 @@ pub struct TTSSpec {
     #[serde(skip)]
     _config_path: PathBuf,
     #[serde(skip)]
-    _out_path: PathBuf,
+    pub _out_path: PathBuf,
 }
 
 impl TTSSpec {
@@ -165,9 +175,11 @@ impl TTSSpec {
 pub struct AudioSpec {
     #[serde(default = "default_offset")]
     pub offset: DurationSeconds,
+    #[serde(default = "default_audio_gain")]
+    pub gain: f32,
     pub path: String,
     #[serde(skip)]
-    _path: PathBuf,
+    pub _path: PathBuf,
 }
 
 impl AudioSpec {
