@@ -2,7 +2,14 @@ OpenGate
 ========
 
 This is a free and open-source binaural beat generator, so that you can generate whatever binaural beat audio you
-want - for meditative purposes, or however you want to use them. See example yaml files in the ./beats directory.
+want, whether for meditative purposes, or however you want to use them.
+
+See example yaml files in the ./beats directory.
+
+The end goal is to generate a complete toolset for open-source consciousness expansion, where the audio files can be
+generated dynamically by anyone, and shared freely under the GPLv3 license. These tools should be available to
+_everyone_ and we should be able to create our own methodology which can be freely shared and freely improved by
+anyone with the time and experience.
 
 [Read about Binaural Beats on wikipedia.](https://simple.wikipedia.org/wiki/Binaural_beats)
 
@@ -60,6 +67,25 @@ Quickstart
 Install as mentioned above, then edit [./beats/meditation_delta.yaml](https://github.com/savageogre/opengate/blob/main/beats/meditation_delta.yaml) to your liking, and run:
 
     opengate your_new_beat.yaml -o my_binaural_beat.wav
+
+Or, if you have recorded audio or text you would like to run Text-to-Speech against, try to work with the
+[Liminal State meditation](https://github.com/savageogre/opengate/blob/main/openstates/001_liminal_state.yaml").
+
+You will need to install piper for TTS, and you can find [all the releases here](https://github.com/rhasspy/piper/releases/tag/2023.11.14-2).
+Install it, then ensure "piper" is in your $PATH variable, or pass `--piper-bin /path/to/piper` as an argument.
+
+    opengate openstates/001_liminal_state.yaml -p /path/to/piper -o 001_liminal_state.wav
+
+
+Using Text-To-Speech
+--------------------
+
+See the quickstart above.
+
+[Install one of these piper releases.](https://github.com/rhasspy/piper/releases/tag/2023.11.14-2) and put `piper`
+in your $PATH or pass it as `--piper-bin /path/to/piper`
+
+See the [./openstates/001_liminal_state.yaml](https://github.com/savageogre/opengate/blob/main/openstates/001_liminal_state.yaml) example to see how to use TTS with opengate.
 
 Installation With FLAC Support
 ------------------------------
@@ -226,3 +252,44 @@ Thus, our full meditation beat would be thus (also in beats/example.yaml):
 It's also possible to use [YAML anchors](https://medium.com/@kinghuang/docker-compose-anchors-aliases-extensions-a1e4105d70bd).
 
 For a full and clean example of a beat using anchors and definitions, see ./beats/meditation_delta.yaml
+
+Integrating Other Audio and Text-To-Speech
+------------------------------------------
+
+If you look at the quickstart above, you will see that it's possible to use text-to-speech.
+
+First, specify two directories in the root of your schema like so:
+
+    model_dir: "../text_to_speech/models"
+    audio_dir: "../openstates_output/001_liminal_state"
+
+Each is relative to the path of the actual yaml file. The `model_dir` points to the directory which has the .onnx
+models you download. Every .onnx file will also need a related .onnx.json file.
+
+The `audio_dir` is the relative directory where it will dump all the output audio from text-to-speech, or look for
+WAV files you want to mix in. It will cache text-to-speech results there. If you want, you can pass `--force` or `-f`
+to have it force generate all new text-to-speech.
+
+The schema allows for mixed in text-to-speech and wav files through the `audio` key in each segment:
+
+    - type: tone
+      dur: 10m
+      ...
+      audio:
+        - type: tts
+          model: en_US-kristin-medium.onnx
+          offset: 0s
+          text: |
+            This will play at the very beginning of this segment, given the zero s offset.
+        - type: tts
+          model: en_US-kristin-medium.onnx
+          offset: 1m
+          gain: 0.5  # defaults to 1.0
+          text: "This will play at one minute."
+        - type: file
+          path: ./rain_sounds.wav  # relative to audio_dir
+          gain: 0.75
+          offset: 2m
+
+Notice that there are two types of audio mixins, a `tts` or `file`. It _must_ be a wav file for now.
+If you want them all to use the same model, use YAML anchors like in the file 001_liminal_state.yaml

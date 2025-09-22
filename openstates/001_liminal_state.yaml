@@ -1,0 +1,186 @@
+definitions:
+  tone_gain: &tone_gain
+    0.2
+  noise: &pink_noise
+    color: pink
+    gain: 0.6
+  liminal: &liminal
+    carrier: 200.0
+    hz: 3.875
+    gain: *tone_gain
+    noise: *pink_noise
+  theta: &theta
+    carrier: 200.0
+    hz: 7.0
+    gain: *tone_gain
+    noise: *pink_noise
+  wakeup: &wakeup
+    carrier: 400.0
+    hz: 12.0
+    gain: 0.177
+    noise:
+      color: white
+      gain: 0.01
+  model: &model
+    'en_US-kristin-medium.onnx'
+
+model_dir: "../text_to_speech/models"
+audio_dir: "../openstates_output/001_liminal_state"
+
+segments:
+
+  # Introduction
+  - type: tone
+    <<: *liminal
+    dur: 1m
+    audio:
+      - type: tts
+        model: *model
+        offset: 1s
+        text: |
+          Welcome.
+          You are beginning your new journey with Open Gate, the open-source consciousness expansion toolbox.
+      - type: tts
+        model: *model
+        offset: 7s
+        text: |
+          You will begin with the Liminal State, the beginning of Consciousness Expansion.
+          This is a threshold where your body grows heavy and still, while your awareness begins to expand beyond it.
+
+  # Body Scan (bottom to top)
+  - type: tone
+    <<: *liminal
+    dur: 10m
+    audio:
+      - type: tts
+        offset: 0s
+        text: "To enter the Liminal State, we must relax and let go of our body. I will show you how."
+        model: *model
+      - type: tts
+        offset: 10s
+        text: "Bring awareness to your feet. Allow them to soften and release."
+        model: *model
+      - type: tts
+        offset: 70s
+        text: "Now feel your legs. Your calves and thighs grow warm and relaxed."
+        model: *model
+      - type: tts
+        offset: 130s
+        text: "Bring attention to your hips and lower back. Sink deeper into stillness."
+        model: *model
+      - type: tts
+        offset: 190s
+        text: "Relax your abdomen and chest. Your breath flows easily, naturally."
+        model: *model
+      - type: tts
+        offset: 250s
+        text: "Release your shoulders and arms. Let your hands grow heavy and still."
+        model: *model
+      - type: tts
+        offset: 310s
+        text: "Soften your neck and jaw. Let your face smooth and relax."
+        model: *model
+      - type: tts
+        offset: 370s
+        text: "Finally, bring awareness to the crown of your head. A gentle warmth, a quiet stillness."
+        model: *model
+      - type: tts
+        offset: 430s
+        text: "Your entire body is at rest. Yet your consciousness remains fully awake."
+        model: *model
+      - type: tts
+        offset: 445s
+        text: "Body at rest. Consciousness, fully awake. Body at rest. Consciousness, fully awake."
+        model: *model
+      - type: tts
+        offset: 455s
+        text: "Body at rest, consciousness fully awake."
+        model: *model
+      - type: tts
+        offset: 480s
+        text: "Relax for now and enjoy these deep feeling of comfort."
+        model: *model
+      - type: tts
+        offset: 500s
+        text: "You are falling deep into the Liminal State of Consciousness Expansion."
+        model: *model
+
+  # Full Body Stillness
+  - type: tone
+    <<: *liminal
+    dur: 5m
+    audio:
+      - type: tts
+        offset: 15s
+        text: |
+          You are now in the Liminal State of Consciousness Expansion.
+          Your body is deeply still, while your awareness is wide open and clear.
+        model: *model
+
+  # Expanded Awareness
+  - type: tone
+    <<: *liminal
+    dur: 8m
+    audio:
+      - type: tts
+        offset: 30s
+        text: |
+          Let your awareness gently expand beyond the body.
+          In this liminal threshold, you prepare for higher states of expanded consciousness.
+        model: *model
+      - type: tts
+        offset: 60s
+        text: |
+          Let your awareness gently expand beyond the body.
+        model: *model
+      - type: tts
+        offset: 90s
+        text: |
+          In this liminal threshold, you prepare for higher states of expanded consciousness.
+          Let your awareness gently expand.
+        model: *model
+      - type: tts
+        offset: 120s
+        text: |
+          Let your awareness gently expand.
+        model: *model
+      - type: tts
+        offset: 150s
+        text: |
+          Let your awareness gently expand.
+          Feel the threshold of the higher states of expanded consciousness.
+        model: *model
+      - type: tts
+        offset: 210s
+        text: |
+          You are totally relaxed.
+          You are in the Liminal State of Consciousness Expansion.
+        model: *model
+
+  # Transition back to Theta
+  - type: transition
+    dur: 3m
+    from: *liminal
+    to: *theta
+
+  # Final Wake Up
+  - type: transition
+    dur: 2m
+    from: *theta
+    to: *wakeup
+  - type: tone
+    <<: *wakeup
+    dur: 1m
+    audio:
+      - type: tts
+        offset: 10s
+        text: |
+          Begin to deepen your breath.
+          Wiggle your fingers and toes.
+          And when you are ready, gently open your eyes.
+        model: *model
+      - type: tts
+        offset: 30s
+        text: |
+          Welcome back.
+        model: *model

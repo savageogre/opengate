@@ -49,7 +49,7 @@ impl FromStr for DurationSeconds {
                     .map_err(|_| format!("Invalid seconds: {:?}", s))?;
             }
 
-            if secs > 0.0 {
+            if secs >= 0.0 {
                 return Ok(DurationSeconds(secs));
             } else {
                 return Err(format!(
@@ -99,6 +99,7 @@ mod tests {
 
     #[test]
     fn test_seconds() {
+        assert_secs("0s", 0.0);
         assert_secs("30s", 30.0);
         assert_secs("30.5s", 30.5);
     }
@@ -122,7 +123,6 @@ mod tests {
     #[test]
     fn test_invalid() {
         assert!("abc".parse::<DurationSeconds>().is_err());
-        assert!("".parse::<DurationSeconds>().is_err());
         assert!("1x".parse::<DurationSeconds>().is_err());
         assert!("1d".parse::<DurationSeconds>().is_err());
         assert!(".5h".parse::<DurationSeconds>().is_err());
