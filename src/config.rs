@@ -7,7 +7,7 @@ use crate::noise::NoiseColor;
 use crate::timeutils::DurationSeconds;
 use crate::tts::run_piper;
 use crate::utils::{ms_to_samples, secs_to_samples};
-use log::debug;
+use log::{debug, info};
 
 /// Defaults
 const DEFAULT_SAMPLE_RATE: u32 = 48_000;
@@ -110,10 +110,27 @@ impl TTSSpec {
         Ok(())
     }
 
-    pub fn generate(&self, piper_bin: Option<&str>) -> std::io::Result<()> {
+    pub fn generate(&self, piper_bin: Option<&str>, force: bool) -> std::io::Result<()> {
+        let out_path = self._out_path.to_str().unwrap();
+        if Path::new(out_path).exists() {
+            if force {
+                info!(
+                    "{} already exists, but forcing regeneration due to --force|-f",
+                    out_path
+                );
+            } else {
+                debug!(
+                    "{} already exists - skipping TTS generation and using old one. Delete it or update key if you want to regenerate.",
+                    out_path
+                );
+                return Ok(());
+            }
+        } else {
+            info!("generating TTS: {}", out_path);
+        }
+
         let model_path = self._model_path.to_str().unwrap();
         let maybe_config_path = self._config_path.to_str();
-        let out_path = self._out_path.to_str().unwrap();
         run_piper(
             piper_bin,
             &self.text,
@@ -264,7 +281,11 @@ impl Config {
     }
 
     /// Build a flat plan of samples to render by iterating segments
-    pub fn create_chunks(mut self, piper_bin: Option<&str>) -> Result<Vec<Chunk>, std::io::Error> {
+    pub fn create_chunks(
+        mut self,
+        piper_bin: Option<&str>,
+        force: bool,
+    ) -> Result<Vec<Chunk>, std::io::Error> {
         let mut chunks: Vec<Chunk> = Vec::new();
         let sr = self.get_sample_rate();
         let model_dir = self._model_dir;
@@ -290,7 +311,7 @@ impl Config {
                             AudioMixin::TTS(tts_spec) => {
                                 debug!("found tts spec {:?}", tts_spec);
                                 tts_spec.init_paths(&audio_dir, &model_dir)?;
-                                tts_spec.generate(piper_bin)?;
+                                tts_spec.generate(piper_bin, force)?;
                             }
                         }
                     }
@@ -321,7 +342,7 @@ impl Config {
                             AudioMixin::TTS(tts_spec) => {
                                 debug!("found tts spec {:?}", tts_spec);
                                 tts_spec.init_paths(&audio_dir, &model_dir)?;
-                                tts_spec.generate(piper_bin)?;
+                                tts_spec.generate(piper_bin, force)?;
                             }
                         }
                     }

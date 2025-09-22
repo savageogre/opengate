@@ -24,6 +24,13 @@ struct Args {
     )]
     piper_bin: Option<String>,
 
+    #[arg(
+        short = 'f',
+        long = "force",
+        help = "force regeneration of audio files even if they exist, for example, if you update your piper model"
+    )]
+    force: bool,
+
     /// YAML configuration file
     config: PathBuf,
 
@@ -48,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut cfg: Config = serde_yaml::from_value(merged)?;
     // This *MUST* run before render because audio and tts specs func init_paths uses the calculated paths.
     cfg.normalize_paths(&args.config);
-    render(cfg, &args.out, args.piper_bin.as_deref())?;
+    render(cfg, &args.out, args.piper_bin.as_deref(), args.force)?;
     info!("Wrote beats to: {:?}", &args.out);
     Ok(())
 }
