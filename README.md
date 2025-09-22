@@ -69,7 +69,7 @@ Install as mentioned above, then edit [./beats/meditation_delta.yaml](https://gi
     opengate your_new_beat.yaml -o my_binaural_beat.wav
 
 Or, if you have recorded audio or text you would like to run Text-to-Speech against, try to work with the
-[Liminal State meditation](https://github.com/savageogre/opengate/blob/main/openstates/001_liminal_state.yaml").
+[Liminal State meditation](https://github.com/savageogre/opengate/blob/main/openstates/001_liminal_state.yaml).
 
 You will need to install piper for TTS, and you can find [all the releases here](https://github.com/rhasspy/piper/releases/tag/2023.11.14-2).
 Install it, then ensure "piper" is in your $PATH variable, or pass `--piper-bin /path/to/piper` as an argument.
