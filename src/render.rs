@@ -115,7 +115,11 @@ pub fn render(
     let mut n_global = 0usize;
     for chunk in chunks {
         match chunk {
-            Chunk::Tone { samples, spec } => {
+            Chunk::Tone {
+                samples,
+                spec,
+                mixins: _mixins,
+            } => {
                 let mut opt_ngen: Option<NoiseGenerator> =
                     spec.noise.map(|ns| NoiseGenerator::new(ns.color));
                 for _ in 0..samples {
@@ -140,6 +144,7 @@ pub fn render(
                 from,
                 to,
                 curve,
+                mixins: _mixins,
             } => {
                 let mut from_ngen = from.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
                 let mut to_ngen = to.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));

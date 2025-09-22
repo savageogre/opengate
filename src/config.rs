@@ -3,6 +3,7 @@ use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
 use crate::fileutils::resolve_relative;
+use crate::mixin::Mixin;
 use crate::noise::NoiseColor;
 use crate::timeutils::DurationSeconds;
 use crate::tts::run_piper;
@@ -247,12 +248,14 @@ pub enum Chunk {
     Tone {
         samples: usize,
         spec: ToneSpec,
+        mixins: Vec<Mixin>,
     },
     Transition {
         samples: usize,
         from: ToneSpec,
         to: ToneSpec,
         curve: Curve,
+        mixins: Vec<Mixin>,
     },
 }
 
@@ -314,16 +317,19 @@ impl Config {
                     audio,
                 } => {
                     let total = secs_to_samples(dur.0, sr);
-                    for mixin in audio.iter_mut() {
-                        match mixin {
+                    let mut mixins: Vec<Mixin> = Vec::new();
+                    for mixin_spec in audio.iter_mut() {
+                        match mixin_spec {
                             AudioMixin::File(audio_spec) => {
                                 debug!("found audio spec {:?}", audio_spec);
                                 audio_spec.init_paths(&audio_dir)?;
+                                mixins.push(Mixin::from(audio_spec.clone()))
                             }
                             AudioMixin::TTS(tts_spec) => {
                                 debug!("found tts spec {:?}", tts_spec);
                                 tts_spec.init_paths(&audio_dir, &model_dir)?;
                                 tts_spec.generate(piper_bin, force)?;
+                                mixins.push(Mixin::from(tts_spec.clone()))
                             }
                         }
                     }
@@ -335,6 +341,7 @@ impl Config {
                             gain: *gain,
                             noise: *noise,
                         },
+                        mixins,
                     });
                 }
                 Segment::Transition {
@@ -345,16 +352,19 @@ impl Config {
                     audio,
                 } => {
                     let total = secs_to_samples(dur.0, sr);
-                    for mixin in audio.iter_mut() {
-                        match mixin {
+                    let mut mixins: Vec<Mixin> = Vec::new();
+                    for mixin_spec in audio.iter_mut() {
+                        match mixin_spec {
                             AudioMixin::File(audio_spec) => {
                                 debug!("found audio spec {:?}", audio_spec);
                                 audio_spec.init_paths(&audio_dir)?;
+                                mixins.push(Mixin::from(audio_spec.clone()))
                             }
                             AudioMixin::TTS(tts_spec) => {
                                 debug!("found tts spec {:?}", tts_spec);
                                 tts_spec.init_paths(&audio_dir, &model_dir)?;
                                 tts_spec.generate(piper_bin, force)?;
+                                mixins.push(Mixin::from(tts_spec.clone()))
                             }
                         }
                     }
@@ -363,6 +373,7 @@ impl Config {
                         from: *from,
                         to: *to,
                         curve: curve.unwrap_or(Curve::Linear),
+                        mixins,
                     });
                 }
             }
