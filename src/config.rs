@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::fileutils::resolve_relative;
 use crate::noise::NoiseColor;
 use crate::timeutils::DurationSeconds;
+use crate::tts::run_piper;
 use crate::utils::{ms_to_samples, secs_to_samples};
 use log::debug;
 
@@ -107,6 +108,19 @@ impl TTSSpec {
 
         self._out_path = audio_dir.join(format!("_tts_{}", key));
         Ok(())
+    }
+
+    pub fn generate(&self, piper_bin: Option<&str>) -> std::io::Result<()> {
+        let model_path = self._model_path.to_str().unwrap();
+        let maybe_config_path = self._config_path.to_str();
+        let out_path = self._out_path.to_str().unwrap();
+        run_piper(
+            piper_bin,
+            &self.text,
+            model_path,
+            maybe_config_path,
+            out_path,
+        )
     }
 
     /// Get or calculate the key being used to cache the output file.
@@ -255,6 +269,7 @@ impl Config {
         let sr = self.get_sample_rate();
         let model_dir = self._model_dir;
         let audio_dir = self._audio_dir;
+        std::fs::create_dir_all(&audio_dir)?;
         for seg in self.segments.iter_mut() {
             match seg {
                 Segment::Tone {
@@ -275,6 +290,7 @@ impl Config {
                             AudioMixin::TTS(tts_spec) => {
                                 debug!("found tts spec {:?}", tts_spec);
                                 tts_spec.init_paths(&audio_dir, &model_dir)?;
+                                tts_spec.generate(None)?;
                             }
                         }
                     }
@@ -293,9 +309,22 @@ impl Config {
                     from,
                     to,
                     curve,
-                    audio: _audio,
+                    audio,
                 } => {
                     let total = secs_to_samples(dur.0, sr);
+                    for mixin in audio.iter_mut() {
+                        match mixin {
+                            AudioMixin::File(audio_spec) => {
+                                debug!("found audio spec {:?}", audio_spec);
+                                audio_spec.init_paths(&audio_dir)?;
+                            }
+                            AudioMixin::TTS(tts_spec) => {
+                                debug!("found tts spec {:?}", tts_spec);
+                                tts_spec.init_paths(&audio_dir, &model_dir)?;
+                                tts_spec.generate(None)?;
+                            }
+                        }
+                    }
                     chunks.push(Chunk::Transition {
                         samples: total,
                         from: *from,
