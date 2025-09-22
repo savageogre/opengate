@@ -1,0 +1,89 @@
+# Define a few standards to use through all the segments.
+definitions:
+  tone_gain: &tone_gain
+    0.25
+  noise: &pink_noise
+    color: pink
+    gain: 0.75
+  theta: &theta
+    carrier: 200.0
+    hz: 7.0
+    gain: *tone_gain
+    noise: *pink_noise
+  delta: &delta
+    carrier: 100.0
+    hz: 3.875
+    gain: *tone_gain
+    noise: *pink_noise
+  # Wake up should have quieter noise and tone levels. This will sound like a fade-out.
+  wakeup: &wakeup
+    carrier: 400.0
+    hz: 12.0
+    gain: 0.333
+    noise:
+      color: white
+      gain: 0.01
+  model: &model
+    'en_US-kristin-medium.onnx'
+
+model_dir: "../text_to_speech/models"
+audio_dir: "../example_meditation_delta_with_speech"
+  
+segments:
+
+  # Begin entraining in theta for 5 minutes
+  - type: tone
+    <<: *theta
+    dur: 5m
+    audio:
+      - type: tts
+        offset: 5s
+        text: |
+          Imagine if you will, a dimension of pure consciousness.
+          A place where you are free to be your TRUE self.
+        model: *model
+        # The .json path is chosen by default.
+        # config: en_US-kristin-medium.onnx.json
+      - type: tts
+        offset: 15s
+        text: |
+          I want you to focus on your breath.
+        model: *model
+      - type: tts
+        offset: 20s
+        text: |
+          Breathe in. Hold it.
+        model: *model
+      - type: tts
+        offset: 25s
+        text: |
+          Now breathe out.
+        model: *model
+
+  # Transition to delta over 5 minutes
+  - type: transition
+    dur: 5m
+    from: *theta
+    to: *delta
+
+  # Relax in delta for 20 minutes
+  - type: tone
+    dur: 20m
+    <<: *delta
+
+  # 2 minutes back to normal theta
+  - type: transition
+    dur: 2m
+    from: *delta
+    to: *theta
+
+  # 2 minutes wake-up!
+  - type: transition
+    dur: 2m
+    from: *theta
+    to: *wakeup
+
+  # 1 minute IN wakeup
+  - type: tone
+    dur: 1m
+    <<: *wakeup
