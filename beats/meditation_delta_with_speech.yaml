@@ -49,6 +49,9 @@ segments:
         text: |
           I want you to focus on your breath.
         model: *model
+        # This is optional, but forces it to write out this filename rather than auto-generate _tts_$SHA256
+        # This will write _tts_focusonyourbreath
+        key: focusonyourbreath
       - type: tts
         offset: 20s
         text: |
