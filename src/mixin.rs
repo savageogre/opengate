@@ -44,10 +44,10 @@ impl Mixin {
     pub fn sample_offset(&self, sample_rate: u32) -> usize {
         utils::secs_to_samples(self.offset, sample_rate)
     }
-    pub fn mix_in(&self, dest: &mut [f32], out_sr: u32) -> std::io::Result<()> {
+    pub fn render(&self, dest: &mut [f32], out_sr: u32) -> std::io::Result<()> {
         debug!(
-            "Loading in mixin of {:?} to {:?} at sample rate {}",
-            self.path, &dest, out_sr
+            "Loading in mixin of {:?} at sample rate {}",
+            self.path, out_sr
         );
         let (samples, in_sr) = load_wav_to_f32(&self.path)?;
         let resampled = resample_linear(&samples, in_sr, out_sr);

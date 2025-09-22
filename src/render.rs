@@ -114,15 +114,21 @@ pub fn render(
 
     let mut n_global = 0usize;
     for chunk in chunks {
+        let mut mixin_vec: Vec<f32> = vec![0.0; chunk.samples()];
+        let mixin_dest: &mut [f32] = &mut mixin_vec;
         match chunk {
             Chunk::Tone {
                 samples,
                 spec,
-                mixins: _mixins,
+                mixins,
             } => {
+                for mixin in mixins {
+                    mixin.render(mixin_dest, sample_rate)?;
+                }
                 let mut opt_ngen: Option<NoiseGenerator> =
                     spec.noise.map(|ns| NoiseGenerator::new(ns.color));
-                for _ in 0..samples {
+                #[allow(clippy::needless_range_loop)]
+                for idx in 0..samples {
                     let f_l = spec.carrier;
                     let f_r = spec.carrier + spec.hz;
 
@@ -132,6 +138,8 @@ pub fn render(
                     let (mut left, mut right) = ((TAU * phase_l).sin(), (TAU * phase_r).sin());
 
                     add_noise_and_fix_gain(&mut left, &mut right, &spec, &mut opt_ngen);
+                    left += mixin_dest[idx];
+                    right += mixin_dest[idx];
                     apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
                     // We write this out as f32 [-1.0, 1.0] because the sinks handle quantization/encoding, depending
                     // on the file type.
@@ -144,8 +152,11 @@ pub fn render(
                 from,
                 to,
                 curve,
-                mixins: _mixins,
+                mixins,
             } => {
+                for mixin in mixins {
+                    mixin.render(mixin_dest, sample_rate)?;
+                }
                 let mut from_ngen = from.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
                 let mut to_ngen = to.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
 
@@ -159,7 +170,8 @@ pub fn render(
                 }));
 
                 let mut ramp_iter = ramp;
-                for _ in 0..samples {
+                #[allow(clippy::needless_range_loop)]
+                for idx in 0..samples {
                     let t = ramp_iter.next();
 
                     let f_car = lerp(from.carrier, to.carrier, t);
@@ -183,6 +195,8 @@ pub fn render(
                         &mut opt_ngen,
                         t,
                     );
+                    left += mixin_dest[idx];
+                    right += mixin_dest[idx];
                     apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
                     sink.write_frame(left * gain, right * gain)?;
                     n_global += 1;
