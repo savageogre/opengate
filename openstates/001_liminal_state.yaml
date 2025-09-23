@@ -24,9 +24,6 @@ definitions:
   model: &model
     'en_US-kristin-medium.onnx'
 
-model_dir: "../text_to_speech/models"
-audio_dir: "../openstates_output/001_liminal_state"
-
 segments:
 
   # Introduction

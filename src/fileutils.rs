@@ -24,3 +24,12 @@ pub fn resolve_relative(base_dir: &Path, maybe_path: &Option<PathBuf>) -> Option
         }
     })
 }
+
+pub fn to_absolute(dir: &Path) -> Option<PathBuf> {
+    let expanded = expand_tilde(dir);
+    if expanded.is_absolute() {
+        Some(expanded)
+    } else {
+        None
+    }
+}
