@@ -38,6 +38,9 @@ shellexpand = "3.1.1"
 sha2 = "0.10.9"
 hex = "0.4.3"
 directories = "6.0.0"
+reqwest = "0.12.23"
+tokio = { version = "1.47.1", features = ["full"] }
+
 
 [[bin]]
 name = "opengate"
@@ -46,3 +49,7 @@ path = "src/bin/opengate.rs"
 [[bin]]
 name = "opengate-tts"
 path = "src/bin/opengate-tts.rs"
+
+[[bin]]
+name = "opengate-download-models"
+path = "src/bin/opengate-download-models.rs"

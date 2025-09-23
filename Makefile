@@ -25,21 +25,25 @@ opengate-flac:
 	cargo build --release --features flac
 	cargo build --release --features flac --bin opengate
 	cargo build --release --features flac --bin opengate-tts
+	cargo build --release --features flac --bin opengate-download-models
 
 opengate:
 	cargo build --release
 	cargo build --release --bin opengate
 	cargo build --release --bin opengate-tts
+	cargo build --release --bin opengate-download-models
 
 install-flac: opengate-flac
 	cargo install --path . --force
 	cargo install --path . --force --bin opengate
 	cargo install --path . --force --bin opengate-tts
+	cargo install --path . --force --bin opengate-download-models
 
 install: opengate
 	cargo install --path . --force
 	cargo install --path . --force --bin opengate
 	cargo install --path . --force --bin opengate-tts
+	cargo install --path . --force --bin opengate-download-models
 
 fmt:
 	cargo fmt
