@@ -53,6 +53,9 @@ test:
 clean:
 	cargo clean
 
+list-sizes:
+	cargo package --list | xargs -I{} du -h {} | sort -h
+
 short: opengate
 	test -f "./test_short.wav" && rm ./test_short.wav || true
 	$(OPENGATE) ./beats/test_short.yaml --out ./test_short.wav

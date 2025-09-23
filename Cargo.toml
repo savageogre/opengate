@@ -7,7 +7,7 @@ description = "An open-source toolset for consciousness expansion."
 license = "GPL-3.0-or-later"
 readme = "README.md"
 keywords = ["audio", "binaural", "entrainment", "meditation", "opengate"]
-categories = ["multimedia:audio"]
+categories = ["multimedia::audio"]
 exclude = [
   "audio/*.wav",
   "text_to_speech/*.tar.gz",
