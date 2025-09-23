@@ -2,6 +2,12 @@
 name = "opengate"
 version = "0.3.0"
 edition = "2024"
+authors = ["Savage Ogre <savageogre.music@gmail.com>"]
+description = "An open-source toolset for consciousness expansion."
+license = "GPL-3.0-or-later"
+readme = "README.md"
+keywords = ["audio", "binaural", "entrainment", "meditation", "opengate"]
+categories = ["multimedia:audio"]
 
 [features]
 default = []
