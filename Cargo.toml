@@ -12,6 +12,8 @@ exclude = [
   "audio/*.wav",
   "text_to_speech/models/*.onnx",
   "text_to_speech/models/*.onnx.json",
+  ".github/*",
+  "target/*"
 ]
 
 [features]
