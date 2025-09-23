@@ -22,7 +22,9 @@ definitions:
       color: white
       gain: 0.01
   model: &model
-    'en_US-kristin-medium.onnx'
+    'en_US-libritts-high.onnx'
+    # 'en_US-ryan-high.onnx'
+    # 'en_US-kristin-medium.onnx'
 
 segments:
 

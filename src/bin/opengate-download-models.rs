@@ -31,6 +31,7 @@ impl Model {
             Self::new("en", "en_US", "amy", "medium"),
             Self::new("en", "en_US", "reza_ibrahim", "medium"),
             Self::new("en", "en_US", "ryan", "high"),
+            Self::new("en", "en_US", "libritts", "high"),
         ]
     }
 
@@ -108,7 +109,7 @@ struct Args {
     short_lang: String,
     #[arg(long = "lang", default_value = "en_US", help = "full language alias")]
     lang: String,
-    #[arg(long = "name", default_value = "ryan", help = "language name")]
+    #[arg(long = "name", default_value = "libritts", help = "language name")]
     name: String,
     #[arg(
         long = "size",

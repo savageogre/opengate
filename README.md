@@ -297,7 +297,7 @@ That will create this directory in most Linux systems:
 You can find all the US English source models [in huggingface here](https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US).
 Just download whatever you want manually, or pass one in manually:
 
-    opengate-download-models --short-lang en --lang en_US --name ryan --size high
+    opengate-download-models --short-lang en --lang en_US --name libritts --size high
 
 Models are .onnx files, and they need an associated json file named similarly but .onnx.json . The downloader will
 grab both.
