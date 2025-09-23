@@ -1,13 +1,21 @@
 [package]
 name = "opengate"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
 authors = ["Savage Ogre <savageogre.music@gmail.com>"]
 description = "An open-source toolset for consciousness expansion."
 license = "GPL-3.0-or-later"
 readme = "README.md"
 keywords = ["audio", "binaural", "entrainment", "meditation", "opengate"]
-categories = ["multimedia:audio"]
+categories = ["multimedia::audio"]
+exclude = [
+  "audio/*.wav",
+  "text_to_speech/*.tar.gz",
+  "text_to_speech/models/*.onnx",
+  "text_to_speech/models/*.onnx.json",
+  ".github/*",
+  "target/*"
+]
 
 [features]
 default = []
@@ -29,6 +37,10 @@ env_logger = "0.11.8"
 shellexpand = "3.1.1"
 sha2 = "0.10.9"
 hex = "0.4.3"
+directories = "6.0.0"
+reqwest = "0.12.23"
+tokio = { version = "1.47.1", features = ["full"] }
+
 
 [[bin]]
 name = "opengate"
@@ -37,3 +49,7 @@ path = "src/bin/opengate.rs"
 [[bin]]
 name = "opengate-tts"
 path = "src/bin/opengate-tts.rs"
+
+[[bin]]
+name = "opengate-download-models"
+path = "src/bin/opengate-download-models.rs"

@@ -1,10 +1,12 @@
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-use crate::fileutils::resolve_relative;
+use crate::fileutils::to_absolute;
 use crate::mixin::Mixin;
 use crate::noise::NoiseColor;
+use crate::sysconfig;
 use crate::timeutils::DurationSeconds;
 use crate::tts::run_piper;
 use crate::utils::{ms_to_samples, secs_to_samples};
@@ -270,13 +272,61 @@ impl Chunk {
 
 impl Config {
     pub fn normalize_paths(&mut self, config_path: &Path) {
-        let base = config_path.parent().unwrap_or_else(|| Path::new("."));
+        // If the path was foo/bar/baz_quux.yaml, the stem is "baz_quux"
+        let stem = config_path
+            .file_stem()
+            .unwrap_or_else(|| OsStr::new("empty"))
+            .to_string_lossy()
+            .into_owned();
 
-        self._audio_dir =
-            resolve_relative(base, &self.audio_dir).unwrap_or_else(|| PathBuf::from("."));
-        self._model_dir =
-            resolve_relative(base, &self.model_dir).unwrap_or_else(|| PathBuf::from("."));
+        if let Some(ref custom_audio_dir) = self.audio_dir {
+            if let Some(expanded) = to_absolute(custom_audio_dir) {
+                // Absolute path passed - just use it.
+                self._audio_dir = expanded;
+            } else {
+                // Non-absolute - get it relative to the audio directory.
+                let exp_to_str = format!(
+                    "Failed to convert custom audio dir to UTF-8: {:?}",
+                    custom_audio_dir
+                );
+                let exp_get_audio = format!(
+                    "Failed to get audio dir with custom audio dir: {:?}",
+                    custom_audio_dir
+                );
+                self._audio_dir = sysconfig::get_audio_dir(
+                    custom_audio_dir.to_str().expect(&exp_to_str).to_string(),
+                )
+                .expect(&exp_get_audio);
+            }
+        } else {
+            // No audio_dir field specified, so use the stem as a subdirectory of the system config audio dir.
+            let exp_stem = format!("Failed to get audio dir with stem: {}", stem);
+            self._audio_dir = sysconfig::get_audio_dir(stem.clone()).expect(&exp_stem);
+        }
 
+        if let Some(ref custom_model_dir) = self.model_dir {
+            if let Some(expanded) = to_absolute(custom_model_dir) {
+                // Absolute TTS models dir passed - use that.
+                self._model_dir = expanded;
+            } else {
+                // Non-absolute, so join it against the the system config models directory.
+                self._model_dir = sysconfig::get_models_dir()
+                    .map(|base| base.join(custom_model_dir))
+                    .expect("Failed to get system models dir");
+            }
+        } else {
+            self._model_dir =
+                sysconfig::get_models_dir().expect("Failed to get default system models dir");
+        }
+
+        info!(
+            "system audio directory normalized to: {}",
+            self._audio_dir.display()
+        );
+        info!(
+            "system TTS models directory normalized to: {}",
+            self._model_dir.display()
+        );
         self._normalized = true;
     }
     pub fn ms_to_samples(&self, ms: f32) -> usize {

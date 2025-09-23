@@ -26,9 +26,6 @@ definitions:
   model: &model
     'en_US-kristin-medium.onnx'
 
-model_dir: "../text_to_speech/models"
-audio_dir: "../example_meditation_delta_with_speech"
-  
 segments:
 
   # Begin entraining in theta for 5 minutes

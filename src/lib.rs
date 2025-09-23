@@ -5,6 +5,7 @@ pub mod mixin;
 pub mod noise;
 pub mod render;
 pub mod sink;
+pub mod sysconfig;
 pub mod timeutils;
 pub mod tts;
 pub mod utils;
