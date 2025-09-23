@@ -11,7 +11,7 @@ use opengate::render::render;
 
 #[derive(Parser, Debug)]
 #[command(
-    author = "Savage Ogre",
+    author,
     version,
     about = "generate binaural beats for meditative purposes"
 )]

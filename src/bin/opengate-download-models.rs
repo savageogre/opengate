@@ -30,6 +30,7 @@ impl Model {
             Self::new("en", "en_US", "kristin", "medium"),
             Self::new("en", "en_US", "amy", "medium"),
             Self::new("en", "en_US", "reza_ibrahim", "medium"),
+            Self::new("en", "en_US", "ryan", "high"),
         ]
     }
 
@@ -48,6 +49,7 @@ impl Model {
         let onnx_url = format!("{}.onnx", base);
         let onnx_path = out_dir.join(format!("{}-{}-{}.onnx", self.lang, self.name, self.size));
         let onnx_bytes = client.get(&onnx_url).send().await?.bytes().await?;
+        info!("Downloading: {}", onnx_url);
         fs::write(&onnx_path, &onnx_bytes).unwrap();
 
         let json_url = format!("{}.onnx.json", base);
@@ -56,9 +58,23 @@ impl Model {
             self.lang, self.name, self.size
         ));
         let json_bytes = client.get(&json_url).send().await?.bytes().await?;
+        info!("Downloading: {}", json_url);
         fs::write(&json_path, &json_bytes).unwrap();
 
         info!("Downloaded {} and JSON to {:?}", self.name, out_dir);
+        Ok(())
+    }
+
+    async fn download_one(
+        out_dir: &Path,
+        short_lang: &str,
+        lang: &str,
+        name: &str,
+        size: &str,
+    ) -> reqwest::Result<()> {
+        let client = Client::new();
+        let model = Self::new(short_lang, lang, name, size);
+        model.download(&client, out_dir).await?;
         Ok(())
     }
 
@@ -72,9 +88,34 @@ impl Model {
 }
 
 #[derive(Parser, Debug)]
+#[command(
+    author,
+    version,
+    about = "download piper Text-To-Speech models and configs to system model dir"
+)]
 struct Args {
     #[arg(short = 'v', long = "verbose", help = "verbose level logging")]
     verbose: bool,
+
+    #[arg(short, long = "all", help = "download all models")]
+    all: bool,
+
+    #[arg(
+        long = "short-lang",
+        default_value = "en",
+        help = "short language alias"
+    )]
+    short_lang: String,
+    #[arg(long = "lang", default_value = "en_US", help = "full language alias")]
+    lang: String,
+    #[arg(long = "name", default_value = "ryan", help = "language name")]
+    name: String,
+    #[arg(
+        long = "size",
+        default_value = "high",
+        help = "language size (low/medium/high)"
+    )]
+    size: String,
 }
 
 #[tokio::main]
@@ -85,7 +126,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let models_dir = sysconfig::get_models_dir()?;
     info!("System models directory is at: {}", models_dir.display());
 
-    Model::download_all(&models_dir).await?;
+    if args.all {
+        Model::download_all(&models_dir).await?;
+    } else {
+        Model::download_one(
+            &models_dir,
+            &args.short_lang,
+            &args.lang,
+            &args.name,
+            &args.size,
+        )
+        .await?;
+    }
 
     Ok(())
 }

@@ -258,18 +258,6 @@ Integrating Other Audio and Text-To-Speech
 
 If you look at the quickstart above, you will see that it's possible to use text-to-speech.
 
-First, specify two directories in the root of your schema like so:
-
-    model_dir: "../text_to_speech/models"
-    audio_dir: "../openstates_output/001_liminal_state"
-
-Each is relative to the path of the actual yaml file. The `model_dir` points to the directory which has the .onnx
-models you download. Every .onnx file will also need a related .onnx.json file.
-
-The `audio_dir` is the relative directory where it will dump all the output audio from text-to-speech, or look for
-WAV files you want to mix in. It will cache text-to-speech results there. If you want, you can pass `--force` or `-f`
-to have it force generate all new text-to-speech.
-
 The schema allows for mixed in text-to-speech and wav files through the `audio` key in each segment:
 
     - type: tone
@@ -287,9 +275,38 @@ The schema allows for mixed in text-to-speech and wav files through the `audio` 
           gain: 0.5  # defaults to 1.0
           text: "This will play at one minute."
         - type: file
-          path: ./rain_sounds.wav  # relative to audio_dir
+          path: ./rain_sounds.wav  # relative to audio_dir which is probably ~/.cache/opengate/models/$filename
           gain: 0.75
           offset: 2m
+        - type: file
+          path: ~/Documents/mycustom.wav  # absolute paths work too
+          gain: 1.0
+          offset: 3m
 
 Notice that there are two types of audio mixins, a `tts` or `file`. It _must_ be a wav file for now.
 If you want them all to use the same model, use YAML anchors like in the file 001_liminal_state.yaml
+
+You will first need to download model directories to your model dir cache. You can run this:
+
+    opengate-download-models --all
+
+That will create this directory in most Linux systems:
+    
+    ~/.cache/opengate/models/
+
+You can find all the US English source models [in huggingface here](https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US).
+Just download whatever you want manually, or pass one in manually:
+
+    opengate-download-models --short-lang en --lang en_US --name ryan --size high
+
+Models are .onnx files, and they need an associated json file named similarly but .onnx.json . The downloader will
+grab both.
+
+For TTS and WAV files, you will need a cache directory to save the output of all TTS.
+
+It will automatically create and use ~/.cache/opengate/audio/001_foobar if you pass in a config named something like
+a/b/c/001_foobar.yaml , however you can override this and pass `audio_dir: ` at the root level of your config and it
+will look for WAV files there if you have a tts/file audio part of any segments.
+
+It will cache and reuse whatever you pass in there. You can also pass `--force` or `-f` to have it force generate all
+new text-to-speech.

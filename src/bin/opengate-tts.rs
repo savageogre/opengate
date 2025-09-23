@@ -6,6 +6,11 @@ use opengate::logger;
 use opengate::tts::run_piper;
 
 #[derive(Parser, Debug)]
+#[command(
+    author,
+    version,
+    about = "run piper and generate text to speech from a file"
+)]
 struct Args {
     #[arg(
         short,
