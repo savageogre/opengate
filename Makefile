@@ -23,31 +23,15 @@ DEPRECATED-install-ubuntu-tts-deps:
 
 opengate-flac:
 	cargo build --release --features flac
-	cargo build --release --features flac --bin opengate
-	cargo build --release --features flac --bin opengate-tts
-	cargo build --release --features flac --bin opengate-download-models
-	cargo build --release --features flac --bin opengate-spectral-analysis
 
 opengate:
 	cargo build --release
-	cargo build --release --bin opengate
-	cargo build --release --bin opengate-tts
-	cargo build --release --bin opengate-download-models
-	cargo build --release --bin opengate-spectral-analysis
 
 install-flac: opengate-flac
 	cargo install --path . --force
-	cargo install --path . --force --bin opengate
-	cargo install --path . --force --bin opengate-tts
-	cargo install --path . --force --bin opengate-download-models
-	cargo install --path . --force --bin opengate-spectral-analysis
 
 install: opengate
 	cargo install --path . --force
-	cargo install --path . --force --bin opengate
-	cargo install --path . --force --bin opengate-tts
-	cargo install --path . --force --bin opengate-download-models
-	cargo install --path . --force --bin opengate-spectral-analysis
 
 fmt:
 	cargo fmt
@@ -67,10 +51,10 @@ list-sizes:
 short: opengate
 	test -f "./test_short.wav" && rm ./test_short.wav || true
 	$(OPENGATE) ./beats/test_short.yaml --out ./test_short.wav
-	aplay ./test_short.wav
+	aplay ./test_short.wav && rm ./test_short.wav
 
 short-flac: opengate-flac
 	test -f "./test_short.flac" && rm ./test_short.flac || true
 	$(OPENGATE) ./beats/test_short.yaml --out ./test_short.flac
 	# Need sudo apt install ffmpeg for ffplay
-	ffplay -autoexit -nodisp ./test_short.flac
+	ffplay -autoexit -nodisp ./test_short.flac && rm ./test_short.flac
