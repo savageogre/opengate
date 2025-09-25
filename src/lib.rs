@@ -1,3 +1,4 @@
+pub mod analysis;
 pub mod config;
 pub mod fileutils;
 pub mod logger;

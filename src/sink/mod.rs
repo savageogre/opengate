@@ -1,7 +1,7 @@
 use log::warn;
 use std::error::Error;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AudioFormat {
     Wav,
     #[allow(dead_code)]
@@ -75,5 +75,15 @@ fn detect_format_from_ext(out: &str) -> AudioFormat {
             );
             AudioFormat::Wav
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_format_from_exc() {
+        assert_eq!(detect_format_from_ext("foo.wav"), AudioFormat::Wav);
     }
 }

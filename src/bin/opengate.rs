@@ -46,9 +46,7 @@ struct Args {
     verbose: bool,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
-    logger::init(args.verbose);
+fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let cfg_text = fs::read_to_string(&args.config)?;
     let value: Value = serde_yaml::from_str(&cfg_text)?;
     let merged = merge_keys_serde(value)?;
@@ -58,4 +56,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     render(cfg, &args.out, args.piper_bin.as_deref(), args.force)?;
     info!("Wrote beats to: {:?}", &args.out);
     Ok(())
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Args::parse();
+    logger::init(args.verbose);
+    run(args)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_run_with_minimal_config() {
+        let dir = tempdir().unwrap();
+        let config_path = dir.path().join("config.yaml");
+        fs::write(&config_path, "tone: 440\nsegments: []").unwrap();
+        let out_path = dir.path().join("out.wav");
+
+        let args = Args {
+            piper_bin: None,
+            force: false,
+            config: config_path.clone(),
+            out: out_path.to_string_lossy().to_string(),
+            verbose: false,
+        };
+
+        let result = run(args);
+        assert!(result.is_ok(), "error was: {:?}", result);
+        assert!(
+            config_path.exists(),
+            "config path {:?} doesnt exist",
+            config_path
+        );
+        assert!(out_path.exists(), "out path {:?} doesnt exist", out_path);
+    }
 }
