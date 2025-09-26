@@ -87,148 +87,171 @@ fn add_noise_and_fix_gain_in_transition(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn render_chunk(
-    chunk: Chunk,
-    lefts: &mut Vec<f32>,
-    rights: &mut Vec<f32>,
-    sample_rate: u32,
-    total_samples: usize,
-    phase_l: &mut f32,
-    phase_r: &mut f32,
-    n_global: &mut usize,
-    fade_ms: f32,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let dt = 1.0_f32 / sample_rate as f32;
-    let fade_len = ms_to_samples(fade_ms, sample_rate)
-        .min(total_samples / 2)
-        .max(1);
-    let mut mixin_vec: Vec<f32> = vec![0.0; chunk.samples()];
-    let mixin_dest: &mut [f32] = &mut mixin_vec;
-    match chunk {
-        Chunk::Tone {
-            samples,
-            spec,
-            mixins,
-        } => {
-            for mixin in mixins {
-                mixin.render(mixin_dest, sample_rate)?;
-            }
-            let mut opt_ngen: Option<NoiseGenerator> =
-                spec.noise.map(|ns| NoiseGenerator::new(ns.color));
-            #[allow(clippy::needless_range_loop)]
-            for idx in 0..samples {
-                let f_l = spec.carrier;
-                let f_r = spec.carrier + spec.hz;
-
-                *phase_l = (*phase_l + f_l * dt) % 1.0;
-                *phase_r = (*phase_r + f_r * dt) % 1.0;
-
-                let (mut left, mut right) = ((TAU * *phase_l).sin(), (TAU * *phase_r).sin());
-
-                add_noise_and_fix_gain(&mut left, &mut right, &spec, &mut opt_ngen);
-                left += mixin_dest[idx];
-                right += mixin_dest[idx];
-                apply_global_fade(*n_global, total_samples, fade_len, &mut left, &mut right);
-                // We write this out as f32 [-1.0, 1.0] because the sinks handle quantization/encoding, depending
-                // on the file type.
-                lefts.push(left);
-                rights.push(right);
-                *n_global += 1;
-            }
-            Ok(())
-        }
-        Chunk::Transition {
-            samples,
-            from,
-            to,
-            curve,
-            mixins,
-        } => {
-            for mixin in mixins {
-                mixin.render(mixin_dest, sample_rate)?;
-            }
-            let mut from_ngen = from.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
-            let mut to_ngen = to.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
-
-            let ramp = dasp::signal::from_iter((0..samples).map(move |n| {
-                let t = if samples <= 1 {
-                    1.0
-                } else {
-                    n as f32 / (samples - 1) as f32
-                };
-                ease(t, curve)
-            }));
-
-            let mut ramp_iter = ramp;
-            #[allow(clippy::needless_range_loop)]
-            for idx in 0..samples {
-                let t = ramp_iter.next();
-
-                let f_car = lerp(from.carrier, to.carrier, t);
-                let f_hz = lerp(from.hz, to.hz, t);
-
-                let f_l = f_car;
-                let f_r = f_car + f_hz;
-
-                *phase_l = (*phase_l + f_l * dt) % 1.0;
-                *phase_r = (*phase_r + f_r * dt) % 1.0;
-
-                let (mut left, mut right) = ((TAU * *phase_l).sin(), (TAU * *phase_r).sin());
-
-                // Optionally, add noise.
-                let mut opt_ngen = from_to_or_fallback(&mut from_ngen, &mut to_ngen, t);
-                add_noise_and_fix_gain_in_transition(
-                    &mut left,
-                    &mut right,
-                    &from,
-                    &to,
-                    &mut opt_ngen,
-                    t,
-                );
-                left += mixin_dest[idx];
-                right += mixin_dest[idx];
-                apply_global_fade(*n_global, total_samples, fade_len, &mut left, &mut right);
-                lefts.push(left);
-                rights.push(right);
-                *n_global += 1;
-            }
-            Ok(())
-        }
-    }
+pub struct TrackCtx {
+    pub left_samples: Vec<f32>,
+    pub right_samples: Vec<f32>,
+    pub sample_rate: u32,
+    pub total_samples: usize,
+    pub phase_l: f32,
+    pub phase_r: f32,
+    pub n_global: usize,
+    pub fade_ms: f32,
+    pub dt: f32,
 }
 
-fn render_stereo(
-    chunks: Vec<Chunk>,
-    sample_rate: u32,
-    fade_ms: f32,
-) -> Result<(Vec<f32>, Vec<f32>), Box<dyn std::error::Error>> {
-    // Initialize the float vectors for both stereo tracks.
-    let total_samples: usize = chunks.iter().map(|c| c.samples()).sum();
-    let mut lefts: Vec<f32> = Vec::with_capacity(total_samples);
-    let mut rights: Vec<f32> = Vec::with_capacity(total_samples);
+impl TrackCtx {
+    pub fn new(total_samples: usize, sample_rate: u32, fade_ms: f32) -> Self {
+        let left_samples: Vec<f32> = Vec::with_capacity(total_samples);
+        let right_samples: Vec<f32> = Vec::with_capacity(total_samples);
 
-    let total_samples: usize = chunks.iter().map(|c| c.samples()).sum();
+        // Phase accumulators for binaural beats
+        let phase_l = 0.0_f32;
+        let phase_r = 0.0_f32;
 
-    // Phase accumulators for binaural beats
-    let mut phase_l = 0.0_f32;
-    let mut phase_r = 0.0_f32;
+        let n_global = 0usize;
+        let dt = 1.0_f32 / sample_rate as f32;
 
-    let mut n_global = 0usize;
-    for chunk in chunks {
-        render_chunk(
-            chunk,
-            &mut lefts,
-            &mut rights,
+        Self {
+            left_samples,
+            right_samples,
             sample_rate,
             total_samples,
-            &mut phase_l,
-            &mut phase_r,
-            &mut n_global,
+            phase_l,
+            phase_r,
+            n_global,
             fade_ms,
-        )?;
+            dt,
+        }
     }
-    Ok((lefts, rights))
+
+    pub fn update_phases(&mut self, f_l: f32, f_r: f32) {
+        self.phase_l = (self.phase_l + f_l * self.dt) % 1.0;
+        self.phase_r = (self.phase_r + f_r * self.dt) % 1.0;
+    }
+
+    pub fn push(&mut self, left: f32, right: f32) {
+        // We write this out as f32 [-1.0, 1.0] because the sinks handle quantization/encoding, depending
+        // on the file type.
+        self.left_samples.push(left);
+        self.right_samples.push(right);
+        self.n_global += 1;
+    }
+
+    pub fn render_chunk(&mut self, chunk: Chunk) -> Result<(), Box<dyn std::error::Error>> {
+        let fade_len = ms_to_samples(self.fade_ms, self.sample_rate)
+            .min(self.total_samples / 2)
+            .max(1);
+        let mut mixin_vec: Vec<f32> = vec![0.0; chunk.samples()];
+        let mixin_dest: &mut [f32] = &mut mixin_vec;
+        match chunk {
+            Chunk::Tone {
+                samples,
+                spec,
+                mixins,
+            } => {
+                for mixin in mixins {
+                    mixin.render(mixin_dest, self.sample_rate)?;
+                }
+                let mut opt_ngen: Option<NoiseGenerator> =
+                    spec.noise.map(|ns| NoiseGenerator::new(ns.color));
+                #[allow(clippy::needless_range_loop)]
+                for idx in 0..samples {
+                    self.update_phases(spec.carrier, spec.carrier + spec.hz);
+
+                    let (mut left, mut right) =
+                        ((TAU * self.phase_l).sin(), (TAU * self.phase_r).sin());
+
+                    add_noise_and_fix_gain(&mut left, &mut right, &spec, &mut opt_ngen);
+                    left += mixin_dest[idx];
+                    right += mixin_dest[idx];
+                    apply_global_fade(
+                        self.n_global,
+                        self.total_samples,
+                        fade_len,
+                        &mut left,
+                        &mut right,
+                    );
+                    self.push(left, right);
+                }
+                Ok(())
+            }
+            Chunk::Transition {
+                samples,
+                from,
+                to,
+                curve,
+                mixins,
+            } => {
+                for mixin in mixins {
+                    mixin.render(mixin_dest, self.sample_rate)?;
+                }
+                let mut from_ngen = from.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
+                let mut to_ngen = to.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
+
+                let ramp = dasp::signal::from_iter((0..samples).map(move |n| {
+                    let t = if samples <= 1 {
+                        1.0
+                    } else {
+                        n as f32 / (samples - 1) as f32
+                    };
+                    ease(t, curve)
+                }));
+
+                let mut ramp_iter = ramp;
+                #[allow(clippy::needless_range_loop)]
+                for idx in 0..samples {
+                    let t = ramp_iter.next();
+
+                    let f_car = lerp(from.carrier, to.carrier, t);
+                    let f_hz = lerp(from.hz, to.hz, t);
+
+                    self.update_phases(f_car, f_car + f_hz);
+
+                    let (mut left, mut right) =
+                        ((TAU * self.phase_l).sin(), (TAU * self.phase_r).sin());
+
+                    // Optionally, add noise.
+                    let mut opt_ngen = from_to_or_fallback(&mut from_ngen, &mut to_ngen, t);
+                    add_noise_and_fix_gain_in_transition(
+                        &mut left,
+                        &mut right,
+                        &from,
+                        &to,
+                        &mut opt_ngen,
+                        t,
+                    );
+                    left += mixin_dest[idx];
+                    right += mixin_dest[idx];
+                    apply_global_fade(
+                        self.n_global,
+                        self.total_samples,
+                        fade_len,
+                        &mut left,
+                        &mut right,
+                    );
+                    self.push(left, right);
+                }
+                Ok(())
+            }
+        }
+    }
+
+    pub fn render_chunks(&mut self, chunks: Vec<Chunk>) -> Result<(), Box<dyn std::error::Error>> {
+        for chunk in chunks {
+            self.render_chunk(chunk)?;
+        }
+        Ok(())
+    }
+
+    pub fn iter_samples(&self) -> impl Iterator<Item = (usize, f32, f32)> + '_ {
+        self.left_samples
+            .iter()
+            .zip(self.right_samples.iter())
+            // Stop at n_global if it's less than the length.
+            .take(self.n_global)
+            .enumerate()
+            .map(|(i, (&left, &right))| (i, left, right))
+    }
 }
 
 /// Given a beat config and output path, write the file dynamically based on extension (WAV or
@@ -246,11 +269,11 @@ pub fn render(
 
     let mut sink = new_sink(out, sample_rate)?;
 
-    let (lefts, rights) = render_stereo(chunks, sample_rate, fade_ms)?;
+    let total_samples: usize = chunks.iter().map(|c| c.samples()).sum();
+    let mut track_ctx = TrackCtx::new(total_samples, sample_rate, fade_ms);
+    track_ctx.render_chunks(chunks)?;
 
-    for idx in 0..lefts.len() {
-        let left = lefts[idx];
-        let right = rights[idx];
+    for (_, left, right) in track_ctx.iter_samples() {
         sink.write_frame(left * gain, right * gain)?;
     }
 
