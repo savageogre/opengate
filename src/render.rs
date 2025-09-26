@@ -87,6 +87,117 @@ fn add_noise_and_fix_gain_in_transition(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn render_chunk(
+    chunk: Chunk,
+    lefts: &mut Vec<f32>,
+    rights: &mut Vec<f32>,
+    sample_rate: u32,
+    total_samples: usize,
+    phase_l: &mut f32,
+    phase_r: &mut f32,
+    n_global: &mut usize,
+    fade_ms: f32,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dt = 1.0_f32 / sample_rate as f32;
+    let fade_len = ms_to_samples(fade_ms, sample_rate)
+        .min(total_samples / 2)
+        .max(1);
+    let mut mixin_vec: Vec<f32> = vec![0.0; chunk.samples()];
+    let mixin_dest: &mut [f32] = &mut mixin_vec;
+    match chunk {
+        Chunk::Tone {
+            samples,
+            spec,
+            mixins,
+        } => {
+            for mixin in mixins {
+                mixin.render(mixin_dest, sample_rate)?;
+            }
+            let mut opt_ngen: Option<NoiseGenerator> =
+                spec.noise.map(|ns| NoiseGenerator::new(ns.color));
+            #[allow(clippy::needless_range_loop)]
+            for idx in 0..samples {
+                let f_l = spec.carrier;
+                let f_r = spec.carrier + spec.hz;
+
+                *phase_l = (*phase_l + f_l * dt) % 1.0;
+                *phase_r = (*phase_r + f_r * dt) % 1.0;
+
+                let (mut left, mut right) = ((TAU * *phase_l).sin(), (TAU * *phase_r).sin());
+
+                add_noise_and_fix_gain(&mut left, &mut right, &spec, &mut opt_ngen);
+                left += mixin_dest[idx];
+                right += mixin_dest[idx];
+                apply_global_fade(*n_global, total_samples, fade_len, &mut left, &mut right);
+                // We write this out as f32 [-1.0, 1.0] because the sinks handle quantization/encoding, depending
+                // on the file type.
+                lefts.push(left);
+                rights.push(right);
+                *n_global += 1;
+            }
+            Ok(())
+        }
+        Chunk::Transition {
+            samples,
+            from,
+            to,
+            curve,
+            mixins,
+        } => {
+            for mixin in mixins {
+                mixin.render(mixin_dest, sample_rate)?;
+            }
+            let mut from_ngen = from.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
+            let mut to_ngen = to.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
+
+            let ramp = dasp::signal::from_iter((0..samples).map(move |n| {
+                let t = if samples <= 1 {
+                    1.0
+                } else {
+                    n as f32 / (samples - 1) as f32
+                };
+                ease(t, curve)
+            }));
+
+            let mut ramp_iter = ramp;
+            #[allow(clippy::needless_range_loop)]
+            for idx in 0..samples {
+                let t = ramp_iter.next();
+
+                let f_car = lerp(from.carrier, to.carrier, t);
+                let f_hz = lerp(from.hz, to.hz, t);
+
+                let f_l = f_car;
+                let f_r = f_car + f_hz;
+
+                *phase_l = (*phase_l + f_l * dt) % 1.0;
+                *phase_r = (*phase_r + f_r * dt) % 1.0;
+
+                let (mut left, mut right) = ((TAU * *phase_l).sin(), (TAU * *phase_r).sin());
+
+                // Optionally, add noise.
+                let mut opt_ngen = from_to_or_fallback(&mut from_ngen, &mut to_ngen, t);
+                add_noise_and_fix_gain_in_transition(
+                    &mut left,
+                    &mut right,
+                    &from,
+                    &to,
+                    &mut opt_ngen,
+                    t,
+                );
+                left += mixin_dest[idx];
+                right += mixin_dest[idx];
+                apply_global_fade(*n_global, total_samples, fade_len, &mut left, &mut right);
+                lefts.push(left);
+                rights.push(right);
+                *n_global += 1;
+            }
+            Ok(())
+        }
+    }
+}
+
 fn render_stereo(
     chunks: Vec<Chunk>,
     sample_rate: u32,
@@ -97,11 +208,7 @@ fn render_stereo(
     let mut lefts: Vec<f32> = Vec::with_capacity(total_samples);
     let mut rights: Vec<f32> = Vec::with_capacity(total_samples);
 
-    let dt = 1.0_f32 / sample_rate as f32;
     let total_samples: usize = chunks.iter().map(|c| c.samples()).sum();
-    let fade_len = ms_to_samples(fade_ms, sample_rate)
-        .min(total_samples / 2)
-        .max(1);
 
     // Phase accumulators for binaural beats
     let mut phase_l = 0.0_f32;
@@ -109,97 +216,17 @@ fn render_stereo(
 
     let mut n_global = 0usize;
     for chunk in chunks {
-        let mut mixin_vec: Vec<f32> = vec![0.0; chunk.samples()];
-        let mixin_dest: &mut [f32] = &mut mixin_vec;
-        match chunk {
-            Chunk::Tone {
-                samples,
-                spec,
-                mixins,
-            } => {
-                for mixin in mixins {
-                    mixin.render(mixin_dest, sample_rate)?;
-                }
-                let mut opt_ngen: Option<NoiseGenerator> =
-                    spec.noise.map(|ns| NoiseGenerator::new(ns.color));
-                #[allow(clippy::needless_range_loop)]
-                for idx in 0..samples {
-                    let f_l = spec.carrier;
-                    let f_r = spec.carrier + spec.hz;
-
-                    phase_l = (phase_l + f_l * dt) % 1.0;
-                    phase_r = (phase_r + f_r * dt) % 1.0;
-
-                    let (mut left, mut right) = ((TAU * phase_l).sin(), (TAU * phase_r).sin());
-
-                    add_noise_and_fix_gain(&mut left, &mut right, &spec, &mut opt_ngen);
-                    left += mixin_dest[idx];
-                    right += mixin_dest[idx];
-                    apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
-                    // We write this out as f32 [-1.0, 1.0] because the sinks handle quantization/encoding, depending
-                    // on the file type.
-                    lefts.push(left);
-                    rights.push(right);
-                    n_global += 1;
-                }
-            }
-            Chunk::Transition {
-                samples,
-                from,
-                to,
-                curve,
-                mixins,
-            } => {
-                for mixin in mixins {
-                    mixin.render(mixin_dest, sample_rate)?;
-                }
-                let mut from_ngen = from.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
-                let mut to_ngen = to.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
-
-                let ramp = dasp::signal::from_iter((0..samples).map(move |n| {
-                    let t = if samples <= 1 {
-                        1.0
-                    } else {
-                        n as f32 / (samples - 1) as f32
-                    };
-                    ease(t, curve)
-                }));
-
-                let mut ramp_iter = ramp;
-                #[allow(clippy::needless_range_loop)]
-                for idx in 0..samples {
-                    let t = ramp_iter.next();
-
-                    let f_car = lerp(from.carrier, to.carrier, t);
-                    let f_hz = lerp(from.hz, to.hz, t);
-
-                    let f_l = f_car;
-                    let f_r = f_car + f_hz;
-
-                    phase_l = (phase_l + f_l * dt) % 1.0;
-                    phase_r = (phase_r + f_r * dt) % 1.0;
-
-                    let (mut left, mut right) = ((TAU * phase_l).sin(), (TAU * phase_r).sin());
-
-                    // Optionally, add noise.
-                    let mut opt_ngen = from_to_or_fallback(&mut from_ngen, &mut to_ngen, t);
-                    add_noise_and_fix_gain_in_transition(
-                        &mut left,
-                        &mut right,
-                        &from,
-                        &to,
-                        &mut opt_ngen,
-                        t,
-                    );
-                    left += mixin_dest[idx];
-                    right += mixin_dest[idx];
-                    apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
-                    lefts.push(left);
-                    rights.push(right);
-                    n_global += 1;
-                }
-            }
-        }
+        render_chunk(
+            chunk,
+            &mut lefts,
+            &mut rights,
+            sample_rate,
+            total_samples,
+            &mut phase_l,
+            &mut phase_r,
+            &mut n_global,
+            fade_ms,
+        )?;
     }
     Ok((lefts, rights))
 }
