@@ -64,6 +64,17 @@ fn default_tone_gain() -> f32 {
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum ToneMode {
+    Binaural,
+    Isochronic,
+}
+
+fn default_tone_mode() -> ToneMode {
+    ToneMode::Binaural
+}
+
+#[derive(Debug, Deserialize, Clone, Copy)]
 pub struct ToneSpec {
     #[serde(default = "default_tone_gain")]
     pub gain: f32,
@@ -72,6 +83,8 @@ pub struct ToneSpec {
     pub hz: f32,
     #[serde(default)]
     pub noise: Option<NoiseSpec>,
+    #[serde(default = "default_tone_mode")]
+    pub mode: ToneMode,
 }
 
 fn default_offset() -> DurationSeconds {
@@ -232,6 +245,8 @@ pub enum Segment {
         noise: Option<NoiseSpec>,
         #[serde(default)]
         audio: Vec<AudioMixin>,
+        #[serde(default = "default_tone_mode")]
+        mode: ToneMode,
     },
     /// Transition from -> to across duration, with an optional curve.
     Transition {
@@ -365,6 +380,7 @@ impl Config {
                     hz,
                     noise,
                     audio,
+                    mode,
                 } => {
                     let total = secs_to_samples(dur.0, sr);
                     let mut mixins: Vec<Mixin> = Vec::new();
@@ -390,6 +406,7 @@ impl Config {
                             hz: *hz,
                             gain: *gain,
                             noise: *noise,
+                            mode: *mode,
                         },
                         mixins,
                     });

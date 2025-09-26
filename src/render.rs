@@ -87,28 +87,23 @@ fn add_noise_and_fix_gain_in_transition(
     }
 }
 
-/// Given a beat config and output path, write the file dynamically based on extension (WAV or
-/// FLAC).
-pub fn render(
-    cfg: Config,
-    out: &str,
-    piper_bin: Option<&str>,
-    force: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let sample_rate = cfg.get_sample_rate();
-    let gain = cfg.get_gain();
-    let fade_ms = cfg.get_fade_ms();
+fn render_stereo(
+    chunks: Vec<Chunk>,
+    sample_rate: u32,
+    fade_ms: f32,
+) -> Result<(Vec<f32>, Vec<f32>), Box<dyn std::error::Error>> {
+    // Initialize the float vectors for both stereo tracks.
+    let total_samples: usize = chunks.iter().map(|c| c.samples()).sum();
+    let mut lefts: Vec<f32> = Vec::with_capacity(total_samples);
+    let mut rights: Vec<f32> = Vec::with_capacity(total_samples);
+
     let dt = 1.0_f32 / sample_rate as f32;
-    let chunks = cfg.create_chunks(piper_bin, force)?;
-
-    let mut sink = new_sink(out, sample_rate)?;
-
     let total_samples: usize = chunks.iter().map(|c| c.samples()).sum();
     let fade_len = ms_to_samples(fade_ms, sample_rate)
         .min(total_samples / 2)
         .max(1);
 
-    // Phase accumulators
+    // Phase accumulators for binaural beats
     let mut phase_l = 0.0_f32;
     let mut phase_r = 0.0_f32;
 
@@ -143,7 +138,8 @@ pub fn render(
                     apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
                     // We write this out as f32 [-1.0, 1.0] because the sinks handle quantization/encoding, depending
                     // on the file type.
-                    sink.write_frame(left * gain, right * gain)?;
+                    lefts.push(left);
+                    rights.push(right);
                     n_global += 1;
                 }
             }
@@ -198,12 +194,39 @@ pub fn render(
                     left += mixin_dest[idx];
                     right += mixin_dest[idx];
                     apply_global_fade(n_global, total_samples, fade_len, &mut left, &mut right);
-                    sink.write_frame(left * gain, right * gain)?;
+                    lefts.push(left);
+                    rights.push(right);
                     n_global += 1;
                 }
             }
         }
     }
+    Ok((lefts, rights))
+}
+
+/// Given a beat config and output path, write the file dynamically based on extension (WAV or
+/// FLAC).
+pub fn render(
+    cfg: Config,
+    out: &str,
+    piper_bin: Option<&str>,
+    force: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let sample_rate = cfg.get_sample_rate();
+    let fade_ms = cfg.get_fade_ms();
+    let gain = cfg.get_gain();
+    let chunks = cfg.create_chunks(piper_bin, force)?;
+
+    let mut sink = new_sink(out, sample_rate)?;
+
+    let (lefts, rights) = render_stereo(chunks, sample_rate, fade_ms)?;
+
+    for idx in 0..lefts.len() {
+        let left = lefts[idx];
+        let right = rights[idx];
+        sink.write_frame(left * gain, right * gain)?;
+    }
+
     sink.finalize()?;
     Ok(())
 }
