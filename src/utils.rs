@@ -36,17 +36,22 @@ pub fn ease(t: f32, curve: Curve) -> f32 {
 }
 
 /// Apply a quick global fade-in and out to avoid clicks at file boundaries.
-pub fn apply_global_fade(n: usize, total: usize, fade_len: usize, left: &mut f32, right: &mut f32) {
-    if n < fade_len {
-        let g = n as f32 / fade_len as f32;
-        *left *= g;
-        *right *= g;
+pub fn apply_global_fade(
+    n: usize,
+    total: usize,
+    fade_len: usize,
+    left: f32,
+    right: f32,
+) -> (f32, f32) {
+    let g = if n < fade_len {
+        n as f32 / fade_len as f32
     } else if n + fade_len >= total {
         let remain = total - n;
-        let g = (remain as f32 / fade_len as f32).clamp(0.0, 1.0);
-        *left *= g;
-        *right *= g;
-    }
+        (remain as f32 / fade_len as f32).clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    (left * g, right * g)
 }
 
 #[cfg(test)]
@@ -146,31 +151,31 @@ mod tests {
 
         // Start of file gain should be 0.0
         let (mut l, mut r) = (1.0_f32, -0.5_f32);
-        apply_global_fade(0, total, fade_len, &mut l, &mut r);
+        (l, r) = apply_global_fade(0, total, fade_len, l, r);
         assert!(approx_eq(l, 0.0));
         assert!(approx_eq(r, 0.0));
 
         // Fade in region at 50, gain is 0.5
         let (mut l, mut r) = (1.0_f32, -0.5_f32);
-        apply_global_fade(50, total, fade_len, &mut l, &mut r);
+        (l, r) = apply_global_fade(50, total, fade_len, l, r);
         assert!(approx_eq(l, 0.5));
         assert!(approx_eq(r, -0.25));
 
         // Middle should be unaffected...
         let (mut l, mut r) = (0.8_f32, -0.4_f32);
-        apply_global_fade(500, total, fade_len, &mut l, &mut r);
+        (l, r) = apply_global_fade(500, total, fade_len, l, r);
         assert!(approx_eq(l, 0.8));
         assert!(approx_eq(r, -0.4));
 
         // At the last sample where n=99, remain is 1 so gain is 1/100
         let (mut l, mut r) = (1.0_f32, -0.5_f32);
-        apply_global_fade(999, total, fade_len, &mut l, &mut r);
+        (l, r) = apply_global_fade(999, total, fade_len, l, r);
         assert!(approx_eq(l, 0.01));
         assert!(approx_eq(r, -0.005));
 
         // Inside the tail region where n=950, remainer is 50 so gain is 1/2
         let (mut l, mut r) = (1.0_f32, -0.5_f32);
-        apply_global_fade(950, total, fade_len, &mut l, &mut r);
+        (l, r) = apply_global_fade(950, total, fade_len, l, r);
         assert!(approx_eq(l, 0.5));
         assert!(approx_eq(r, -0.25));
     }
@@ -182,13 +187,13 @@ mod tests {
 
         // Just after fade in ends
         let (mut l, mut r) = (1.0_f32, 1.0_f32);
-        apply_global_fade(100, total, fade_len, &mut l, &mut r);
+        (l, r) = apply_global_fade(100, total, fade_len, l, r);
         assert!(approx_eq(l, 1.0));
         assert!(approx_eq(r, 1.0));
 
         // Just before fade out starts
         let (mut l, mut r) = (1.0_f32, 1.0_f32);
-        apply_global_fade(899, total, fade_len, &mut l, &mut r);
+        (l, r) = apply_global_fade(899, total, fade_len, l, r);
         assert!(approx_eq(l, 1.0));
         assert!(approx_eq(r, 1.0));
     }

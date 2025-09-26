@@ -1,4 +1,5 @@
-use crate::config::{Chunk, Config, NoiseSpec, ToneSpec};
+use crate::config::{Chunk, Config, Curve, NoiseSpec, ToneSpec};
+use crate::mixin::Mixin;
 use crate::noise::NoiseGenerator;
 use crate::sink::new_sink;
 use crate::utils::{apply_global_fade, ease, lerp, ms_to_samples};
@@ -97,6 +98,7 @@ pub struct TrackCtx {
     pub n_global: usize,
     pub fade_ms: f32,
     pub dt: f32,
+    pub fade_len: usize,
 }
 
 impl TrackCtx {
@@ -111,6 +113,10 @@ impl TrackCtx {
         let n_global = 0usize;
         let dt = 1.0_f32 / sample_rate as f32;
 
+        let fade_len = ms_to_samples(fade_ms, sample_rate)
+            .min(total_samples / 2)
+            .max(1);
+
         Self {
             left_samples,
             right_samples,
@@ -121,15 +127,16 @@ impl TrackCtx {
             n_global,
             fade_ms,
             dt,
+            fade_len,
         }
     }
 
-    pub fn update_phases(&mut self, f_l: f32, f_r: f32) {
+    fn update_phases(&mut self, f_l: f32, f_r: f32) {
         self.phase_l = (self.phase_l + f_l * self.dt) % 1.0;
         self.phase_r = (self.phase_r + f_r * self.dt) % 1.0;
     }
 
-    pub fn push(&mut self, left: f32, right: f32) {
+    fn push(&mut self, left: f32, right: f32) {
         // We write this out as f32 [-1.0, 1.0] because the sinks handle quantization/encoding, depending
         // on the file type.
         self.left_samples.push(left);
@@ -137,10 +144,90 @@ impl TrackCtx {
         self.n_global += 1;
     }
 
-    pub fn render_chunk(&mut self, chunk: Chunk) -> Result<(), Box<dyn std::error::Error>> {
-        let fade_len = ms_to_samples(self.fade_ms, self.sample_rate)
-            .min(self.total_samples / 2)
-            .max(1);
+    fn apply_global_fade(&self, left: f32, right: f32) -> (f32, f32) {
+        apply_global_fade(
+            self.n_global,
+            self.total_samples,
+            self.fade_len,
+            left,
+            right,
+        )
+    }
+
+    fn render_tone(
+        &mut self,
+        mixin_dest: &mut [f32],
+        samples: usize,
+        spec: &ToneSpec,
+        mixins: &Vec<Mixin>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        for mixin in mixins {
+            mixin.render(mixin_dest, self.sample_rate)?;
+        }
+        let mut opt_ngen: Option<NoiseGenerator> =
+            spec.noise.map(|ns| NoiseGenerator::new(ns.color));
+        for mix in mixin_dest.iter().take(samples) {
+            self.update_phases(spec.carrier, spec.carrier + spec.hz);
+
+            let (mut left, mut right) = ((TAU * self.phase_l).sin(), (TAU * self.phase_r).sin());
+
+            add_noise_and_fix_gain(&mut left, &mut right, spec, &mut opt_ngen);
+            left += mix;
+            right += mix;
+            (left, right) = self.apply_global_fade(left, right);
+            self.push(left, right);
+        }
+        Ok(())
+    }
+
+    fn render_transition(
+        &mut self,
+        mixin_dest: &mut [f32],
+        samples: usize,
+        from: &ToneSpec,
+        to: &ToneSpec,
+        curve: Curve,
+        mixins: &Vec<Mixin>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        for mixin in mixins {
+            mixin.render(mixin_dest, self.sample_rate)?;
+        }
+        let mut from_ngen = from.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
+        let mut to_ngen = to.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
+
+        let ramp = dasp::signal::from_iter((0..samples).map(move |n| {
+            let t = if samples <= 1 {
+                1.0
+            } else {
+                n as f32 / (samples - 1) as f32
+            };
+            ease(t, curve)
+        }));
+
+        let mut ramp_iter = ramp;
+
+        for mix in mixin_dest.iter().take(samples) {
+            let t = ramp_iter.next();
+
+            let f_car = lerp(from.carrier, to.carrier, t);
+            let f_hz = lerp(from.hz, to.hz, t);
+
+            self.update_phases(f_car, f_car + f_hz);
+
+            let (mut left, mut right) = ((TAU * self.phase_l).sin(), (TAU * self.phase_r).sin());
+
+            // Optionally, add noise.
+            let mut opt_ngen = from_to_or_fallback(&mut from_ngen, &mut to_ngen, t);
+            add_noise_and_fix_gain_in_transition(&mut left, &mut right, from, to, &mut opt_ngen, t);
+            left += mix;
+            right += mix;
+            (left, right) = self.apply_global_fade(left, right);
+            self.push(left, right);
+        }
+        Ok(())
+    }
+
+    fn render_chunk(&mut self, chunk: Chunk) -> Result<(), Box<dyn std::error::Error>> {
         let mut mixin_vec: Vec<f32> = vec![0.0; chunk.samples()];
         let mixin_dest: &mut [f32] = &mut mixin_vec;
         match chunk {
@@ -148,91 +235,14 @@ impl TrackCtx {
                 samples,
                 spec,
                 mixins,
-            } => {
-                for mixin in mixins {
-                    mixin.render(mixin_dest, self.sample_rate)?;
-                }
-                let mut opt_ngen: Option<NoiseGenerator> =
-                    spec.noise.map(|ns| NoiseGenerator::new(ns.color));
-                #[allow(clippy::needless_range_loop)]
-                for idx in 0..samples {
-                    self.update_phases(spec.carrier, spec.carrier + spec.hz);
-
-                    let (mut left, mut right) =
-                        ((TAU * self.phase_l).sin(), (TAU * self.phase_r).sin());
-
-                    add_noise_and_fix_gain(&mut left, &mut right, &spec, &mut opt_ngen);
-                    left += mixin_dest[idx];
-                    right += mixin_dest[idx];
-                    apply_global_fade(
-                        self.n_global,
-                        self.total_samples,
-                        fade_len,
-                        &mut left,
-                        &mut right,
-                    );
-                    self.push(left, right);
-                }
-                Ok(())
-            }
+            } => self.render_tone(mixin_dest, samples, &spec, &mixins),
             Chunk::Transition {
                 samples,
                 from,
                 to,
                 curve,
                 mixins,
-            } => {
-                for mixin in mixins {
-                    mixin.render(mixin_dest, self.sample_rate)?;
-                }
-                let mut from_ngen = from.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
-                let mut to_ngen = to.noise.as_ref().map(|ns| NoiseGenerator::new(ns.color));
-
-                let ramp = dasp::signal::from_iter((0..samples).map(move |n| {
-                    let t = if samples <= 1 {
-                        1.0
-                    } else {
-                        n as f32 / (samples - 1) as f32
-                    };
-                    ease(t, curve)
-                }));
-
-                let mut ramp_iter = ramp;
-                #[allow(clippy::needless_range_loop)]
-                for idx in 0..samples {
-                    let t = ramp_iter.next();
-
-                    let f_car = lerp(from.carrier, to.carrier, t);
-                    let f_hz = lerp(from.hz, to.hz, t);
-
-                    self.update_phases(f_car, f_car + f_hz);
-
-                    let (mut left, mut right) =
-                        ((TAU * self.phase_l).sin(), (TAU * self.phase_r).sin());
-
-                    // Optionally, add noise.
-                    let mut opt_ngen = from_to_or_fallback(&mut from_ngen, &mut to_ngen, t);
-                    add_noise_and_fix_gain_in_transition(
-                        &mut left,
-                        &mut right,
-                        &from,
-                        &to,
-                        &mut opt_ngen,
-                        t,
-                    );
-                    left += mixin_dest[idx];
-                    right += mixin_dest[idx];
-                    apply_global_fade(
-                        self.n_global,
-                        self.total_samples,
-                        fade_len,
-                        &mut left,
-                        &mut right,
-                    );
-                    self.push(left, right);
-                }
-                Ok(())
-            }
+            } => self.render_transition(mixin_dest, samples, &from, &to, curve, &mixins),
         }
     }
 
